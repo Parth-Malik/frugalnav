@@ -1,9 +1,15 @@
-"""Core data contracts for FrugalNav. Fixed-shape structs, ready for the C++/Eigen port."""
+"""Core data contracts for FrugalNav. Fixed-shape structs, ready for the C++/Eigen port.
+
+DTYPE is the single precision knob: np.float64 for laptop prototyping,
+np.float32 for the GAP9 RISC-V precision sweep (feasibility study).
+"""
 
 from dataclasses import dataclass
 from typing import Optional
 
 import numpy as np
+
+DTYPE = np.float64
 
 
 @dataclass
@@ -17,8 +23,8 @@ class SensorInput:
     image_frame: Optional[np.ndarray] = None
 
     def __post_init__(self):
-        self.linear_accel = np.asarray(self.linear_accel, dtype=np.float64).reshape(3)
-        self.angular_vel = np.asarray(self.angular_vel, dtype=np.float64).reshape(3)
+        self.linear_accel = np.asarray(self.linear_accel, dtype=DTYPE).reshape(3)
+        self.angular_vel = np.asarray(self.angular_vel, dtype=DTYPE).reshape(3)
 
 
 @dataclass
@@ -33,7 +39,7 @@ class VioOutput:
     blur: float = 0.0
 
     def __post_init__(self):
-        self.delta_pose = np.asarray(self.delta_pose, dtype=np.float64).reshape(4, 4)
+        self.delta_pose = np.asarray(self.delta_pose, dtype=DTYPE).reshape(4, 4)
 
 
 @dataclass
@@ -48,7 +54,7 @@ class LandmarkFix:
 
     def __post_init__(self):
         if self.valid and self.pose_world is not None:
-            self.pose_world = np.asarray(self.pose_world, dtype=np.float64).reshape(4, 4)
+            self.pose_world = np.asarray(self.pose_world, dtype=DTYPE).reshape(4, 4)
 
     @classmethod
     def invalid(cls, timestamp: float) -> "LandmarkFix":
@@ -65,8 +71,8 @@ class PoseEstimate:
     pos_std_m: float
 
     def __post_init__(self):
-        self.pose_world = np.asarray(self.pose_world, dtype=np.float64).reshape(4, 4)
-        self.velocity_world = np.asarray(self.velocity_world, dtype=np.float64).reshape(3)
+        self.pose_world = np.asarray(self.pose_world, dtype=DTYPE).reshape(4, 4)
+        self.velocity_world = np.asarray(self.velocity_world, dtype=DTYPE).reshape(3)
 
 
 @dataclass
@@ -78,4 +84,4 @@ class VelocityCmd:
     yaw_rate: float
 
     def __post_init__(self):
-        self.linear_vel = np.asarray(self.linear_vel, dtype=np.float64).reshape(3)
+        self.linear_vel = np.asarray(self.linear_vel, dtype=DTYPE).reshape(3)
