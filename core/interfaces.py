@@ -1,19 +1,20 @@
-import numpy as np
+"""Core data contracts for FrugalNav. Fixed-shape structs, ready for the C++/Eigen port."""
+
 from dataclasses import dataclass
 from typing import Optional
 
+import numpy as np
+
+
 @dataclass
 class SensorInput:
-    """
-    Raw sensor stream from the hardware or dataset.
-    Frames: IMU data is in the Body frame.
-    Units: m/s^2 for acceleration, rad/s for angular velocity.
-    """
+    """Raw sensor tick. IMU in body frame: accel m/s^2, gyro rad/s."""
+
     timestamp: float
-    linear_accel: np.ndarray      
-    angular_vel: np.ndarray       
+    linear_accel: np.ndarray
+    angular_vel: np.ndarray
     has_image: bool = False
-    image_frame: Optional[np.ndarray] = None  # Handle to the image payload
+    image_frame: Optional[np.ndarray] = None
 
     def __post_init__(self):
         self.linear_accel = np.asarray(self.linear_accel, dtype=np.float64).reshape(3)
@@ -22,17 +23,14 @@ class SensorInput:
 
 @dataclass
 class VioOutput:
-    """
-    The relative state increment and glass-box internals from the VIO frontend.
-    Feeds the uncertainty scheduler and state fusion.
-    Composition: pose_new = pose_prev @ delta_pose
-    """
+    """Relative motion + glass-box internals from the VIO. Compose as: pose_new = pose_prev @ delta_pose."""
+
     timestamp: float
-    delta_pose: np.ndarray        # shape (4, 4) SE(3), relative motion since last tick
-    pos_std_m: float              # VIO's internal confidence metric (standard deviation in meters)
+    delta_pose: np.ndarray
+    pos_std_m: float
     active_features: int
     imu_bias_norm: float
-    blur: float = 0.0             # Feeds the Uncertainty (U) metric
+    blur: float = 0.0
 
     def __post_init__(self):
         self.delta_pose = np.asarray(self.delta_pose, dtype=np.float64).reshape(4, 4)
@@ -40,32 +38,31 @@ class VioOutput:
 
 @dataclass
 class LandmarkFix:
-    """
-    Absolute position fix from the ArUco detector (AVL).
-    Frames: pose_world is in the World (Landmark map) frame.
-    """
-    valid: bool                   # True if a marker was successfully detected this tick
+    """Absolute fix from an ArUco marker, pose in the world (landmark map) frame."""
+
+    valid: bool
     timestamp: float
     marker_id: int
-    pose_world: np.ndarray        # shape (4, 4) SE(3)
-    pos_std_m: float              # Measurement standard deviation in meters (for Kalman fusion weighting)
+    pose_world: Optional[np.ndarray]
+    pos_std_m: float
 
     def __post_init__(self):
-        if self.valid:
+        if self.valid and self.pose_world is not None:
             self.pose_world = np.asarray(self.pose_world, dtype=np.float64).reshape(4, 4)
+
+    @classmethod
+    def invalid(cls, timestamp: float) -> "LandmarkFix":
+        return cls(valid=False, timestamp=timestamp, marker_id=-1, pose_world=None, pos_std_m=0.0)
 
 
 @dataclass
 class PoseEstimate:
-    """
-    The single fused belief of the UAV's state. 
-    Written by state fusion, read by the target-centric controller.
-    Frames: World frame.
-    """
+    """The single fused belief of the UAV state, in the world frame."""
+
     timestamp: float
-    pose_world: np.ndarray        # shape (4, 4) SE(3)
-    velocity_world: np.ndarray    # shape (3,)
-    pos_std_m: float              # Current fused estimate uncertainty (drives the scheduler)
+    pose_world: np.ndarray
+    velocity_world: np.ndarray
+    pos_std_m: float
 
     def __post_init__(self):
         self.pose_world = np.asarray(self.pose_world, dtype=np.float64).reshape(4, 4)
@@ -74,14 +71,10 @@ class PoseEstimate:
 
 @dataclass
 class VelocityCmd:
-    """
-    Target-centric output command to drive the UAV.
-    Frames: Body frame. The controller must extract the rotation matrix from the 
-            fused PoseEstimate to rotate the World-frame error into this Body frame.
-    Units: m/s for linear velocity, rad/s for yaw rate.
-    """
+    """Velocity command in the body frame. Controller rotates the world-frame error via the estimate's rotation."""
+
     timestamp: float
-    linear_vel: np.ndarray        # shape (3,)
+    linear_vel: np.ndarray
     yaw_rate: float
 
     def __post_init__(self):
