@@ -1,0 +1,7 @@
+.venv/
+__pycache__/
+core/__pycache__/
+harness/__pycache__/
+data/
+*.png
+trajectories/
