@@ -1,5 +1,3 @@
-"""SE(3) / SO(3) math. Poses are 4x4 homogeneous matrices: [[R, t], [0, 1]]."""
-
 import numpy as np
 from core.interfaces import DTYPE
 
@@ -9,14 +7,11 @@ def skew(w):
                      [-w[1], w[0], 0]], dtype=DTYPE)
 
 def exp_so3(w):
-    """Rodrigues: axis-angle vector (3,) -> rotation matrix (3, 3)."""
     w = np.asarray(w, dtype=DTYPE)
     theta = float(np.linalg.norm(w))
     W = skew(w)
-    
     if theta < 1e-8:
         return np.eye(3, dtype=DTYPE) + W
-        
     return (np.eye(3, dtype=DTYPE)
             + (np.sin(theta) / theta) * W
             + ((1 - np.cos(theta)) / (theta ** 2)) * (W @ W))
@@ -36,16 +31,13 @@ def inv_se3(T):
     return Ti
 
 def relative_se3(T_prev, T_curr):
-    """Body-frame increment such that T_curr = T_prev @ relative_se3(T_prev, T_curr)."""
     return inv_se3(T_prev) @ T_curr
 
 def q_to_R(q):
-    """Quaternion (w, x, y, z) -> rotation matrix. Normalizes first."""
     q = np.asarray(q, dtype=DTYPE)
     n = float(np.linalg.norm(q))
     if n < 1e-12:
         raise ValueError("Cannot convert near-zero quaternion to rotation matrix.")
-        
     w, x, y, z = q / n
     return np.array([
         [1 - 2 * y * y - 2 * z * z, 2 * x * y - 2 * w * z, 2 * x * z + 2 * w * y],
@@ -54,10 +46,6 @@ def q_to_R(q):
     ], dtype=DTYPE)
 
 def project_to_SO3(R):
-    """
-    SVD-based projection back onto the SO(3) manifold.
-    Essential for mitigating float32 roundoff error during integration.
-    """
     U, _, Vt = np.linalg.svd(R)
     R_proj = U @ Vt
     if np.linalg.det(R_proj) < 0:

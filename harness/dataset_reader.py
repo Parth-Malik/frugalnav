@@ -1,5 +1,3 @@
-"""EuRoC reader. Merges IMU + camera events into a SensorInput stream."""
-
 import csv
 import os
 import numpy as np
@@ -30,7 +28,6 @@ def read_euroc_stream(dataset_path: str, require_image_exists: bool = True):
                 "angular_vel": np.array([float(row[1]), float(row[2]), float(row[3])]),
                 "linear_accel": np.array([float(row[4]), float(row[5]), float(row[6])]),
             })
-            
     if os.path.exists(cam_csv):
         for row in _rows(cam_csv):
             events.append({
@@ -43,7 +40,6 @@ def read_euroc_stream(dataset_path: str, require_image_exists: bool = True):
 
     last_accel, last_gyro = np.zeros(3), np.zeros(3)
     have_imu = False
-    
     for e in events:
         if e["type"] == "imu":
             last_accel, last_gyro = e["linear_accel"], e["angular_vel"]

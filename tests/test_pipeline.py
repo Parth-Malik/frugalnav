@@ -1,10 +1,8 @@
 import numpy as np
-
 from core.interfaces import SensorInput
 from core.se3 import make_se3, q_to_R, exp_so3, project_to_SO3
 from core.pipeline import FrugalPipeline
 from harness.drift_injection import DriftInjectionAdapter
-
 
 def _curved_gt(n=200):
     ts, poses = [], []
@@ -15,18 +13,15 @@ def _curved_gt(n=200):
         ts.append(t)
     return np.array(ts), poses
 
-
 def test_zero_drift_reconstructs_groundtruth():
     ts, poses = _curved_gt()
     vio = DriftInjectionAdapter(ts, poses, drift_rate_m_per_s=0.0)
     pipe = FrugalPipeline(vio)
     stream = (SensorInput(t, [0, 0, 9.81], [0, 0, 0]) for t in ts)
     traj = pipe.replay(stream, initial_pose=poses[0])
-
     end_est = traj[-1].pose_world[:3, 3]
     end_gt = poses[-1][:3, 3]
     assert np.linalg.norm(end_est - end_gt) < 1e-9
-
 
 def test_drift_rate_is_honest():
     ts, poses = _curved_gt()
@@ -35,10 +30,8 @@ def test_drift_rate_is_honest():
     pipe = FrugalPipeline(vio)
     stream = (SensorInput(t, [0, 0, 9.81], [0, 0, 0]) for t in ts)
     traj = pipe.replay(stream, initial_pose=poses[0])
-
     expected = rate * (ts[-1] - ts[0])
     assert traj[-1].pos_std_m == 0.0 or abs(traj[-1].pos_std_m - expected) < 0.1 * expected + 1e-9
-
 
 def test_no_aliasing():
     caller = np.array([1.0, 2.0, 3.0])
@@ -47,15 +40,12 @@ def test_no_aliasing():
     assert s.linear_accel[0] == 1.0
     assert not np.shares_memory(s.linear_accel, caller)
 
-
 def test_quaternion_normalized():
-    R = q_to_R(np.array([0.98, 0.1, 0.1, 0.05]))   # non-unit input
+    R = q_to_R(np.array([0.98, 0.1, 0.1, 0.05]))
     assert np.allclose(R @ R.T, np.eye(3), atol=1e-9)
     assert abs(np.linalg.det(R) - 1.0) < 1e-9
 
-
 def test_so3_manifold_hygiene():
-    """Repeated float32 composition with periodic projection stays near SO(3)."""
     R = np.eye(3, dtype=np.float32)
     rng = np.random.default_rng(0)
     for i in range(20000):
@@ -70,16 +60,11 @@ def test_so3_manifold_hygiene():
             R = project_to_SO3(R).astype(np.float32)
     assert np.linalg.norm(R.T @ R - np.eye(3)) < 1e-5
 
-
 def test_returned_pose_is_independent():
-    """Guards against regressions where PoseEstimate aliases the live current_pose."""
     ts, poses = _curved_gt(50)
     vio = DriftInjectionAdapter(ts, poses, drift_rate_m_per_s=0.0)
     pipe = FrugalPipeline(vio)
     stream = (SensorInput(t, [0, 0, 9.81], [0, 0, 0]) for t in ts)
     traj = pipe.replay(stream, initial_pose=poses[0])
-
-    # a returned snapshot must not share memory with the live buffer...
     assert not np.shares_memory(traj[-1].pose_world, pipe.current_pose)
-    # ...and the in-place SO(3) projection must not corrupt earlier snapshots.
     assert not np.allclose(traj[5].pose_world, traj[40].pose_world)
