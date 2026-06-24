@@ -48,3 +48,43 @@ def test_quaternion_normalized():
     R = q_to_R(np.array([0.98, 0.1, 0.1, 0.05]))
     assert np.allclose(R @ R.T, np.eye(3), atol=1e-9)
     assert abs(np.linalg.det(R) - 1.0) < 1e-9
+
+def test_so3_manifold_hygiene():
+    """
+    Verifies the SVD projection keeps the rotation matrix orthonormal 
+    over thousands of compositions, particularly critical for float32.
+    """
+    from core.interfaces import DTYPE
+    
+    # Force float32 for this specific stress test to simulate RISC-V drift
+    R_current = np.eye(3, dtype=np.float32)
+    
+    # Small realistic rotation increment
+    delta_R = exp_so3(np.array([0.001, 0.002, -0.001]))
+    delta_R = np.array(delta_R, dtype=np.float32)
+    
+    # We construct a dummy pipeline just to use its projection logic
+    from core.pipeline import FrugalPipeline
+    
+    class DummyAdapter:
+        def update(self, s):
+            T = np.eye(4, dtype=np.float32)
+            T[:3, :3] = delta_R
+            from core.interfaces import VioOutput
+            return VioOutput(s.timestamp, T, 0.0, 30, 0.0)
+        def reset(self): pass
+            
+    pipe = FrugalPipeline(DummyAdapter())
+    pipe.current_pose = np.eye(4, dtype=np.float32)
+    
+    # Run 15,000 compositions
+    for i in range(15000):
+        s = SensorInput(timestamp=i*0.01, linear_accel=np.zeros(3), angular_vel=np.zeros(3))
+        pipe.step(s)
+        
+    R_final = pipe.current_pose[:3, :3]
+    
+    # Assert orthonormality is bounded. Without projection, float32 error 
+    # reaches ~1e-5. With projection, it should stay tight.
+    error = float(np.linalg.norm(R_final.T @ R_final - np.eye(3)))
+    assert error < 1e-6, f"SO(3) drift unbounded: {error}"
