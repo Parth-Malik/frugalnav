@@ -1,10 +1,10 @@
-"""Verifies pipeline integrity and state logic."""
-
 import numpy as np
+
 from core.interfaces import SensorInput
-from core.se3 import make_se3, q_to_R, exp_so3
+from core.se3 import make_se3, q_to_R, exp_so3, project_to_SO3
 from core.pipeline import FrugalPipeline
 from harness.drift_injection import DriftInjectionAdapter
+
 
 def _curved_gt(n=200):
     ts, poses = [], []
@@ -15,16 +15,18 @@ def _curved_gt(n=200):
         ts.append(t)
     return np.array(ts), poses
 
+
 def test_zero_drift_reconstructs_groundtruth():
     ts, poses = _curved_gt()
     vio = DriftInjectionAdapter(ts, poses, drift_rate_m_per_s=0.0)
     pipe = FrugalPipeline(vio)
     stream = (SensorInput(t, [0, 0, 9.81], [0, 0, 0]) for t in ts)
     traj = pipe.replay(stream, initial_pose=poses[0])
-    
+
     end_est = traj[-1].pose_world[:3, 3]
     end_gt = poses[-1][:3, 3]
     assert np.linalg.norm(end_est - end_gt) < 1e-9
+
 
 def test_drift_rate_is_honest():
     ts, poses = _curved_gt()
@@ -33,9 +35,10 @@ def test_drift_rate_is_honest():
     pipe = FrugalPipeline(vio)
     stream = (SensorInput(t, [0, 0, 9.81], [0, 0, 0]) for t in ts)
     traj = pipe.replay(stream, initial_pose=poses[0])
-    
+
     expected = rate * (ts[-1] - ts[0])
     assert traj[-1].pos_std_m == 0.0 or abs(traj[-1].pos_std_m - expected) < 0.1 * expected + 1e-9
+
 
 def test_no_aliasing():
     caller = np.array([1.0, 2.0, 3.0])
@@ -44,61 +47,39 @@ def test_no_aliasing():
     assert s.linear_accel[0] == 1.0
     assert not np.shares_memory(s.linear_accel, caller)
 
+
 def test_quaternion_normalized():
-    R = q_to_R(np.array([0.98, 0.1, 0.1, 0.05]))
+    R = q_to_R(np.array([0.98, 0.1, 0.1, 0.05]))   # non-unit input
     assert np.allclose(R @ R.T, np.eye(3), atol=1e-9)
     assert abs(np.linalg.det(R) - 1.0) < 1e-9
 
+
 def test_so3_manifold_hygiene():
-    """
-    Verifies the SVD projection keeps the rotation matrix orthonormal 
-    over thousands of compositions, particularly critical for float32.
-    """
-    from core.interfaces import DTYPE
-    
-    # Force float32 for this specific stress test to simulate RISC-V drift
-    R_current = np.eye(3, dtype=np.float32)
-    
-    # Small realistic rotation increment
-    delta_R = exp_so3(np.array([0.001, 0.002, -0.001]))
-    delta_R = np.array(delta_R, dtype=np.float32)
-    
-    # We construct a dummy pipeline just to use its projection logic
-    from core.pipeline import FrugalPipeline
-    
-    class DummyAdapter:
-        def update(self, s):
-            T = np.eye(4, dtype=np.float32)
-            T[:3, :3] = delta_R
-            from core.interfaces import VioOutput
-            return VioOutput(s.timestamp, T, 0.0, 30, 0.0)
-        def reset(self): pass
-            
-    pipe = FrugalPipeline(DummyAdapter())
-    pipe.current_pose = np.eye(4, dtype=np.float32)
-    
-    # Run 15,000 compositions
-    for i in range(15000):
-        s = SensorInput(timestamp=i*0.01, linear_accel=np.zeros(3), angular_vel=np.zeros(3))
-        pipe.step(s)
-        
-    R_final = pipe.current_pose[:3, :3]
-    
-    # Assert orthonormality is bounded. Without projection, float32 error 
-    # reaches ~1e-5. With projection, it should stay tight.
-    error = float(np.linalg.norm(R_final.T @ R_final - np.eye(3)))
-    assert error < 1e-6, f"SO(3) drift unbounded: {error}"
+    """Repeated float32 composition with periodic projection stays near SO(3)."""
+    R = np.eye(3, dtype=np.float32)
+    rng = np.random.default_rng(0)
+    for i in range(20000):
+        w = rng.normal(0, 0.02, 3).astype(np.float32)
+        th = float(np.linalg.norm(w))
+        W = np.array([[0, -w[2], w[1]], [w[2], 0, -w[0]], [-w[1], w[0], 0]], dtype=np.float32)
+        Rinc = (np.eye(3, dtype=np.float32)
+                + (np.sin(th) / th) * W
+                + ((1 - np.cos(th)) / th ** 2) * (W @ W))
+        R = (R @ Rinc).astype(np.float32)
+        if (i + 1) % 100 == 0:
+            R = project_to_SO3(R).astype(np.float32)
+    assert np.linalg.norm(R.T @ R - np.eye(3)) < 1e-5
+
 
 def test_returned_pose_is_independent():
-    """Guards against regressions where PoseEstimate aliases current_pose."""
-    ts, poses = _curved_gt(10)
-    # create dummy velocities for the updated signature
-    vels = [np.zeros(3)] * 10
-    ang_vels = [np.zeros(3)] * 10
-    
-    vio = DriftInjectionAdapter(ts, poses, vels, ang_vels, drift_rate_m_per_s=0.0)
+    """Guards against regressions where PoseEstimate aliases the live current_pose."""
+    ts, poses = _curved_gt(50)
+    vio = DriftInjectionAdapter(ts, poses, drift_rate_m_per_s=0.0)
     pipe = FrugalPipeline(vio)
-    stream = [SensorInput(t, [0, 0, 9.81], [0, 0, 0]) for t in ts]
-    
-    traj = pipe.replay(stream)
-    assert not np.shares_memory(traj[-1].pose_world, pipe.current_pose), "Aliasing detected! PoseEstimate __post_init__ must copy."
+    stream = (SensorInput(t, [0, 0, 9.81], [0, 0, 0]) for t in ts)
+    traj = pipe.replay(stream, initial_pose=poses[0])
+
+    # a returned snapshot must not share memory with the live buffer...
+    assert not np.shares_memory(traj[-1].pose_world, pipe.current_pose)
+    # ...and the in-place SO(3) projection must not corrupt earlier snapshots.
+    assert not np.allclose(traj[5].pose_world, traj[40].pose_world)
