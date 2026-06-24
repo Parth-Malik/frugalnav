@@ -1,11 +1,19 @@
-"""EuRoC reader. Merges IMU + camera events into a SensorInput stream."""
+"""EuRoC reader (harness). Merges IMU + camera events into a SensorInput stream.
+
+Emits timestamps in SECONDS. groundtruth.py MUST also emit seconds, or the drift
+adapter's nearest-timestamp match silently locks onto index 0.
+"""
 
 import csv
 import os
+
 import numpy as np
+
 from core.interfaces import SensorInput
 
+
 def _rows(csv_path):
+    """Yield non-empty, non-comment rows from a EuRoC csv (header may start with '#')."""
     with open(csv_path, "r") as f:
         for row in csv.reader(f):
             if not row or row[0].lstrip().startswith("#"):
@@ -15,6 +23,7 @@ def _rows(csv_path):
             except ValueError:
                 continue
             yield row
+
 
 def read_euroc_stream(dataset_path: str, require_image_exists: bool = True):
     imu_csv = os.path.join(dataset_path, "mav0", "imu0", "data.csv")
@@ -30,7 +39,6 @@ def read_euroc_stream(dataset_path: str, require_image_exists: bool = True):
                 "angular_vel": np.array([float(row[1]), float(row[2]), float(row[3])]),
                 "linear_accel": np.array([float(row[4]), float(row[5]), float(row[6])]),
             })
-            
     if os.path.exists(cam_csv):
         for row in _rows(cam_csv):
             events.append({
@@ -43,7 +51,6 @@ def read_euroc_stream(dataset_path: str, require_image_exists: bool = True):
 
     last_accel, last_gyro = np.zeros(3), np.zeros(3)
     have_imu = False
-    
     for e in events:
         if e["type"] == "imu":
             last_accel, last_gyro = e["linear_accel"], e["angular_vel"]
