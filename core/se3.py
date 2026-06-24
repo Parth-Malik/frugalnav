@@ -44,7 +44,7 @@ def q_to_R(q):
     q = np.asarray(q, dtype=DTYPE)
     n = float(np.linalg.norm(q))
     if n < 1e-12:
-        return np.eye(3, dtype=DTYPE)
+        raise ValueError("Cannot convert near-zero quaternion to rotation matrix.")
         
     w, x, y, z = q / n
     return np.array([
@@ -52,3 +52,15 @@ def q_to_R(q):
         [2 * x * y + 2 * w * z, 1 - 2 * x * x - 2 * z * z, 2 * y * z - 2 * w * x],
         [2 * x * z - 2 * w * y, 2 * y * z + 2 * w * x, 1 - 2 * x * x - 2 * y * y],
     ], dtype=DTYPE)
+
+def project_to_SO3(R):
+    """
+    SVD-based projection back onto the SO(3) manifold.
+    Essential for mitigating float32 roundoff error during integration.
+    """
+    U, _, Vt = np.linalg.svd(R)
+    R_proj = U @ Vt
+    if np.linalg.det(R_proj) < 0:
+        U[:, -1] *= -1
+        R_proj = U @ Vt
+    return R_proj
