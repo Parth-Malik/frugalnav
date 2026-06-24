@@ -88,3 +88,17 @@ def test_so3_manifold_hygiene():
     # reaches ~1e-5. With projection, it should stay tight.
     error = float(np.linalg.norm(R_final.T @ R_final - np.eye(3)))
     assert error < 1e-6, f"SO(3) drift unbounded: {error}"
+
+def test_returned_pose_is_independent():
+    """Guards against regressions where PoseEstimate aliases current_pose."""
+    ts, poses = _curved_gt(10)
+    # create dummy velocities for the updated signature
+    vels = [np.zeros(3)] * 10
+    ang_vels = [np.zeros(3)] * 10
+    
+    vio = DriftInjectionAdapter(ts, poses, vels, ang_vels, drift_rate_m_per_s=0.0)
+    pipe = FrugalPipeline(vio)
+    stream = [SensorInput(t, [0, 0, 9.81], [0, 0, 0]) for t in ts]
+    
+    traj = pipe.replay(stream)
+    assert not np.shares_memory(traj[-1].pose_world, pipe.current_pose), "Aliasing detected! PoseEstimate __post_init__ must copy."
