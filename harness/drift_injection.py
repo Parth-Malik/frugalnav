@@ -27,10 +27,17 @@ class DriftInjectionAdapter:
         self.last_idx = None
         self.last_ts = None
         self.accumulated_drift_m = 0.0
+        self._j = 0 # Monotonic pointer for O(N) matching
 
     def update(self, sensor_input):
         t = sensor_input.timestamp
-        idx = int(np.argmin(np.abs(self.gt_timestamps - t)))
+        
+        # Fast O(N) forward-pointer match
+        while self._j + 1 < len(self.gt_timestamps) and \
+              abs(self.gt_timestamps[self._j+1] - t) <= abs(self.gt_timestamps[self._j] - t):
+            self._j += 1
+            
+        idx = self._j
         
         if self.last_idx is None:
             self.last_idx = idx
