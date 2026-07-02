@@ -1,8 +1,12 @@
-from dataclasses import dataclass
+"""Core data contracts for FrugalNav. Fixed-shape structs, ready for the C++/Eigen port."""
+
+from dataclasses import dataclass, field
 from typing import Optional
+
 import numpy as np
 
 DTYPE = np.float64
+
 
 @dataclass
 class SensorInput:
@@ -16,17 +20,21 @@ class SensorInput:
         self.linear_accel = np.array(self.linear_accel, dtype=DTYPE).reshape(3)
         self.angular_vel = np.array(self.angular_vel, dtype=DTYPE).reshape(3)
 
+
 @dataclass
 class VioOutput:
     timestamp: float
     delta_pose: np.ndarray
     pos_std_m: float
-    active_features: int
-    imu_bias_norm: float
+    active_features: int = 0
+    imu_bias_norm: float = 0.0
     blur: float = 0.0
+    velocity_body: np.ndarray = field(default_factory=lambda: np.zeros(3))
 
     def __post_init__(self):
         self.delta_pose = np.array(self.delta_pose, dtype=DTYPE).reshape(4, 4)
+        self.velocity_body = np.array(self.velocity_body, dtype=DTYPE).reshape(3)
+
 
 @dataclass
 class LandmarkFix:
@@ -44,6 +52,7 @@ class LandmarkFix:
     def invalid(cls, timestamp: float) -> "LandmarkFix":
         return cls(valid=False, timestamp=timestamp, marker_id=-1, pose_world=None, pos_std_m=0.0)
 
+
 @dataclass
 class PoseEstimate:
     timestamp: float
@@ -54,6 +63,7 @@ class PoseEstimate:
     def __post_init__(self):
         self.pose_world = np.array(self.pose_world, dtype=DTYPE).reshape(4, 4)
         self.velocity_world = np.array(self.velocity_world, dtype=DTYPE).reshape(3)
+
 
 @dataclass
 class VelocityCmd:
