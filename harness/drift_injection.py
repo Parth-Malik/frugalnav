@@ -52,33 +52,55 @@ class DriftInjectionAdapter:
 
 
 class PoseDriftAdapter:
-    """Week 3: driven per-tick by (timestamp, gt_pose_world); reports clean velocity."""
+    """Week 3/4: driven per-tick by (timestamp, gt_pose_world); reports clean velocity.
 
-    def __init__(self, pos_bias=(0.0, 0.0, 0.0), random_walk_std=0.01, seed=0):
+    pos_std_m is the per-tick injected drift magnitude, so the fused uncertainty that
+    accumulates from it tracks the real drift the scheduler must respond to.
+    active_features is reported (default healthy); an optional feature_dip window lets
+    a demo exercise the observability floor.
+    """
+
+    def __init__(self, pos_bias=(0.0, 0.0, 0.0), random_walk_std=0.01, seed=0,
+                 active_features=150, feature_dip=None):
         self.pos_bias = np.asarray(pos_bias, dtype=DTYPE)
         self.random_walk_std = float(random_walk_std)
         self._rng = np.random.default_rng(seed)
+        self.active_features = int(active_features)
+        self.feature_dip = feature_dip
         self.reset()
 
     def reset(self):
         self.last_gt_pose = None
         self.last_timestamp = None
 
+    def _features_at(self, t):
+        if self.feature_dip is not None:
+            t0, t1, dipped = self.feature_dip
+            if t0 <= t <= t1:
+                return int(dipped)
+        return self.active_features
+
     def update(self, timestamp, gt_pose_world):
         gt_pose_world = np.asarray(gt_pose_world, dtype=DTYPE)
         if self.last_gt_pose is None:
             self.last_gt_pose = gt_pose_world.copy()
             self.last_timestamp = timestamp
-            return VioOutput(timestamp, np.eye(4, dtype=DTYPE), 0.01,
+            return VioOutput(timestamp, np.eye(4, dtype=DTYPE), 0.0,
+                             active_features=self._features_at(timestamp),
                              velocity_body=np.zeros(3))
         dt = max(timestamp - self.last_timestamp, 1e-6)
         delta_gt = relative_se3(self.last_gt_pose, gt_pose_world)
         noise = self._rng.normal(0, self.random_walk_std, 3)
+        injected = (self.pos_bias * dt) + noise
         delta_noisy = delta_gt.copy()
-        delta_noisy[:3, 3] += (self.pos_bias * dt) + noise
+        delta_noisy[:3, 3] += injected
         vel_body = delta_gt[:3, 3] / dt
         self.last_gt_pose = gt_pose_world.copy()
         self.last_timestamp = timestamp
-        return VioOutput(timestamp=timestamp, delta_pose=delta_noisy,
-                         pos_std_m=float(self.random_walk_std * np.sqrt(dt)),
-                         velocity_body=vel_body)
+        return VioOutput(
+            timestamp=timestamp,
+            delta_pose=delta_noisy,
+            pos_std_m=float(np.linalg.norm(injected)),
+            active_features=self._features_at(timestamp),
+            velocity_body=vel_body,
+        )
