@@ -92,7 +92,8 @@ def main():
         from harness.euroc_reader import EurocReader
         r = EurocReader(a.euroc)
         gt, imu = r.ground_truth(), r.imu()
-        src_label = f"real EuRoC: {os.path.basename(a.euroc.rstrip('/\\'))}"
+        _euroc_name = os.path.basename(a.euroc.rstrip("/\\"))
+        src_label = f"real EuRoC: {_euroc_name}"
     else:
         gt, imu = synthetic_euroc()
         src_label = "built-in synthetic EuRoC-style trajectory"
