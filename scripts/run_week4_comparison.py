@@ -1,4 +1,9 @@
-"""Week 4 mid-term deliverable: none vs fixed-period vs uncertainty-aware."""
+"""Week 4 mid-term deliverable (integrated): none vs fixed-period vs uncertainty-aware.
+
+The uncertainty policy is driven by Rohan's canonical UncertaintyScheduler through the
+integration bridge, deciding when Parth's fusion pipeline requests a correction.
+Headline: comparable accuracy to fixed-period with fewer corrections.
+"""
 
 import numpy as np
 import matplotlib
@@ -8,7 +13,7 @@ import matplotlib.pyplot as plt
 from core.se3 import make_se3
 from core.interfaces import LandmarkFix
 from core.state_fusion import StateFusion
-from core.uncertainty_scheduler import UncertaintyScheduler, SchedulerConfig
+from core.scheduler_bridge import PipelineScheduler
 from harness.drift_injection import PoseDriftAdapter
 
 
@@ -25,11 +30,11 @@ def _fix_at(gt_pose, timestamp, rng, noise_m=0.02, pos_std_m=0.05):
                        pose_world=pose, pos_std_m=pos_std_m)
 
 
-def run_policy(t, gt, policy, period_s=8.0, cfg=None, seed=1):
+def run_policy(t, gt, policy, period_s=8.0, seed=1):
     adapter = PoseDriftAdapter(pos_bias=(0.05, 0.02, 0.0), random_walk_std=0.02, seed=seed)
     fusion = StateFusion()
     fusion.reset(initial_pose=gt[0])
-    scheduler = UncertaintyScheduler(cfg) if policy == "uncertainty" else None
+    sched = PipelineScheduler() if policy == "uncertainty" else None
     fix_rng = np.random.default_rng(123)
 
     traj, errors, fix_pts = [], [], []
@@ -46,11 +51,13 @@ def run_policy(t, gt, policy, period_s=8.0, cfg=None, seed=1):
                 do_fix = True
                 last_fixed_time = ti
         elif policy == "uncertainty":
-            if scheduler.should_correct(fusion.estimate.pos_std_m, vio_out):
+            if sched.should_correct(vio_out, fusion.estimate.pos_std_m):
                 do_fix = True
 
         if do_fix:
             fusion.correct(_fix_at(gt_p, ti, fix_rng))
+            if sched is not None:
+                sched.reset_after_fix()
             count += 1
             fix_pts.append(fusion.estimate.pose_world[:3, 3].copy())
 
@@ -64,12 +71,11 @@ def run_policy(t, gt, policy, period_s=8.0, cfg=None, seed=1):
 def run_comparison():
     t, gt = make_trajectory()
     gt_xy = np.array([p[:3, 3] for p in gt])
-    cfg = SchedulerConfig(a_sigma=1.0, a_feat=0.5, a_blur=0.2, a_bias=0.1, threshold=0.35)
 
     results = {
         "none": run_policy(t, gt, "none"),
         "fixed": run_policy(t, gt, "fixed", period_s=8.0),
-        "uncertainty": run_policy(t, gt, "uncertainty", cfg=cfg),
+        "uncertainty": run_policy(t, gt, "uncertainty"),
     }
 
     print(f"{'policy':<14}{'corrections':>12}{'mean err (m)':>15}{'final err (m)':>15}")

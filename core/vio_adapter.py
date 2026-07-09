@@ -1,39 +1,63 @@
-import numpy as np
-from typing import Protocol
-from core.interfaces import SensorInput, VioOutput
-from core.se3 import inv_se3
+"""
+core/vio_adapter.py
+-------------------
+The SEAM of the whole system. The scheduler must not care WHERE its signals come
+from -- the kinematic sim, a drift scaffold over a real dataset, or (later) a real
+OpenVINS/ORB-SLAM3 build. They all implement the same tiny interface, so Parth can
+drop the real VIO in later by writing one more subclass, and nothing downstream changes.
 
-class VioAdapter(Protocol):
-    def update(self, sensor_input: SensorInput) -> VioOutput: ...
-    def reset(self) -> None: ...
+This file is PURE and portable (no numpy, no OpenCV) -- it belongs in core/.
 
-class TrajectoryReplayAdapter:
-    def __init__(self, timestamps, poses):
-        self.timestamps = np.array(timestamps)
-        self.poses = poses
-        self.reset()
+A VioSource produces, each update, a `VioSignals` bundle:
+  - est:   the (x, y) position estimate in the target-centric frame
+  - cues:  the glass-box dict the UncertaintyScheduler consumes
+  - gt:    ground truth (x, y) when available (datasets/sim have it; real flight won't)
+It can also apply_fix() (an absolute correction) and report whether it has arrived.
+"""
+from abc import ABC, abstractmethod
+from dataclasses import dataclass, field
 
-    def reset(self):
-        self.idx = 0
 
-    def update(self, sensor_input: SensorInput) -> VioOutput:
-        if self.idx >= len(self.timestamps):
+@dataclass
+class VioSignals:
+    t: float
+    est: tuple                      # (x, y) estimate
+    cues: dict                      # keys: sigma_pos, sigma_head, feature_loss, blur,
+                                    #       imu_bias, active_features
+    gt: tuple | None = None         # (x, y) ground truth, or None on real flight
+    extra: dict = field(default_factory=dict)
+
+    def error(self):
+        """True estimate error if ground truth is available, else None."""
+        if self.gt is None:
             return None
-        
-        target_ts = sensor_input.timestamp
-        closest_idx = np.argmin(np.abs(self.timestamps - target_ts))
-        
-        if closest_idx == 0:
-            delta = np.eye(4)
-        else:
-            delta = inv_se3(self.poses[closest_idx - 1]) @ self.poses[closest_idx]
-            
-        self.idx = closest_idx + 1
-        
-        return VioOutput(
-            timestamp=target_ts,
-            delta_pose=delta,
-            pos_std_m=0.01 * (closest_idx ** 0.5),
-            active_features=30,
-            imu_bias_norm=0.1
-        )
+        return ((self.est[0] - self.gt[0]) ** 2 + (self.est[1] - self.gt[1]) ** 2) ** 0.5
+
+
+class VioSource(ABC):
+    """Anything that can feed the scheduler. Implement these four methods."""
+
+    @abstractmethod
+    def update(self) -> VioSignals | None:
+        """Advance one step; return signals, or None when the stream is exhausted."""
+
+    @abstractmethod
+    def apply_fix(self) -> bool:
+        """Attempt an absolute correction (e.g. a landmark in view). True if applied."""
+
+    def arrived(self) -> bool:
+        return False
+
+    def name(self) -> str:
+        return self.__class__.__name__
+
+
+# A real VIO would be added later WITHOUT touching the scheduler, like:
+#
+#   class OpenVinsSource(VioSource):
+#       def update(self):     # pull pose+covariance from the OpenVINS process
+#           ...
+#       def apply_fix(self):  # fuse an ArUco measurement into the OpenVINS state
+#           ...
+#
+# That is the entire point of this seam.
