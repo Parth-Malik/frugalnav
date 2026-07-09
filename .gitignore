@@ -5,3 +5,5 @@ harness/__pycache__/
 data/
 *.png
 trajectories/
+add_demo.sh
+*:Zone.Identifier
