@@ -1,0 +1,43 @@
+{
+  "_comment": "Week 6 evaluation scenarios (plan: A open/no markers, B markers along path, C obstacles+markers). One drift model, three terrains, so the three correction policies are compared on equal footing. base_drift etc. match the Week-4 sim.",
+
+  "common": {
+    "step_len": 1.0,
+    "base_drift": 0.03,
+    "lateral_bias": 0.6,
+    "fix_noise": 0.03,
+    "detect_prob": 0.97,
+    "marker_spacing": 2
+  },
+
+  "scenarios": {
+    "A": {
+      "label": "A: open, no markers",
+      "length": 60.0,
+      "markers": false,
+      "hard_zone": [20.0, 32.0],
+      "hard_rate": 2.0
+    },
+    "B": {
+      "label": "B: markers along path",
+      "length": 60.0,
+      "markers": true,
+      "hard_zone": [20.0, 32.0],
+      "hard_rate": 2.0
+    },
+    "C": {
+      "label": "C: obstacles + markers (detour)",
+      "length": 78.0,
+      "markers": true,
+      "hard_zone": [32.0, 50.0],
+      "hard_rate": 4.0
+    }
+  },
+
+  "policies": {
+    "fixed_period": 5,
+    "uncertainty_threshold": 0.7
+  },
+
+  "seeds": 5
+}

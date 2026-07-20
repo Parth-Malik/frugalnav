@@ -1,0 +1,269 @@
+%-------------------------
+% Resume in Latex
+% Based off of: https://github.com/sb2nov/resume (Jake's / Abey George template)
+% Adapted for: Rohan Yadav
+%------------------------
+
+\documentclass[letterpaper,11pt]{article}
+
+\usepackage{latexsym}
+\usepackage[empty]{fullpage}
+\usepackage{titlesec}
+\usepackage{marvosym}
+\usepackage[usenames,dvipsnames]{color}
+\usepackage{verbatim}
+\usepackage{enumitem}
+\usepackage[hidelinks]{hyperref}
+\usepackage[english]{babel}
+\usepackage{tabularx}
+\usepackage{fontawesome5}
+\usepackage{multicol}
+\usepackage{graphicx}
+\setlength{\multicolsep}{-3.0pt}
+\setlength{\columnsep}{-1pt}
+\input{glyphtounicode}
+
+\RequirePackage{tikz}
+\RequirePackage{xcolor}
+\usepackage{tikz}
+\usetikzlibrary{svg.path}
+
+
+\definecolor{cvblue}{HTML}{0E5484}
+\definecolor{black}{HTML}{130810}
+\definecolor{darkcolor}{HTML}{0F4539}
+\definecolor{cvgreen}{HTML}{3BD80D}
+\definecolor{taggreen}{HTML}{00E278}
+\definecolor{SlateGrey}{HTML}{2E2E2E}
+\definecolor{LightGrey}{HTML}{666666}
+\colorlet{name}{black}
+\colorlet{tagline}{darkcolor}
+\colorlet{heading}{darkcolor}
+\colorlet{headingrule}{cvblue}
+\colorlet{accent}{darkcolor}
+\colorlet{emphasis}{SlateGrey}
+\colorlet{body}{LightGrey}
+
+
+% Adjust margins
+\addtolength{\oddsidemargin}{-0.6in}
+\addtolength{\evensidemargin}{-0.5in}
+\addtolength{\textwidth}{1.19in}
+\addtolength{\topmargin}{-.7in}
+\addtolength{\textheight}{1.5in}
+
+\urlstyle{same}
+
+\raggedbottom
+\raggedright
+\setlength{\tabcolsep}{0in}
+
+% Sections formatting
+\titleformat{\section}{
+  \vspace{-4pt}\scshape\raggedright\large\bfseries
+}{}{0em}{}[\color{black}\titlerule \vspace{-5pt}]
+
+% Ensure that generate pdf is machine readable/ATS parsable
+\pdfgentounicode=1
+
+%-------------------------
+% Custom commands
+\newcommand{\resumeItem}[1]{
+  \item\small{
+    {#1 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\classesList}[4]{
+    \item\small{
+        {#1 #2 #3 #4 \vspace{-2pt}}
+  }
+}
+
+\newcommand{\resumeSubheading}[4]{
+  \vspace{-2pt}\item
+    \begin{tabular*}{1.0\textwidth}[t]{l@{\extracolsep{\fill}}r}
+      \textbf{\large#1} & \textbf{\small #2} \\
+      \textit{\large#3} & \textit{\small #4} \\
+
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubSubheading}[2]{
+    \item
+    \begin{tabular*}{0.97\textwidth}{l@{\extracolsep{\fill}}r}
+      \textit{\small#1} & \textit{\small #2} \\
+    \end{tabular*}\vspace{-7pt}
+}
+
+
+\newcommand{\resumeProjectHeading}[2]{
+    \item
+    \begin{tabular*}{1.001\textwidth}{l@{\extracolsep{\fill}}r}
+      \small#1 & \textbf{\small #2}\\
+    \end{tabular*}\vspace{-7pt}
+}
+
+\newcommand{\resumeSubItem}[1]{\resumeItem{#1}\vspace{-4pt}}
+
+\renewcommand\labelitemi{$\vcenter{\hbox{\tiny$\bullet$}}$}
+\renewcommand\labelitemii{$\vcenter{\hbox{\tiny$\bullet$}}$}
+
+\newcommand{\resumeSubHeadingListStart}{\begin{itemize}[leftmargin=0.0in, label={}]}
+\newcommand{\resumeSubHeadingListEnd}{\end{itemize}}
+\newcommand{\resumeItemListStart}{\begin{itemize}[itemsep=1pt, topsep=2pt, parsep=0pt, partopsep=0pt]}
+\newcommand{\resumeItemListEnd}{\end{itemize}\vspace{-5pt}}
+
+
+\newcommand\sbullet[1][.5]{\mathbin{\vcenter{\hbox{\scalebox{#1}{$\bullet$}}}}}
+
+%-------------------------------------------
+%%%%%%  RESUME STARTS HERE  %%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+
+\begin{document}
+
+%----------HEADING----------
+\begin{center}
+    {\Huge \scshape Rohan Yadav} \\ \vspace{2pt}
+    \small Roll No. 2024478 \\ \vspace{2pt}
+
+    \href{mailto:rohan24478@iiitd.ac.in}{\raisebox{-0.2\height}\faEnvelope\ \underline{rohan24478@iiitd.ac.in}} ~
+    \href{tel:+91-7428329095}{\raisebox{-0.1\height}\faPhone\ \underline{+91-7428329095}} ~
+    \href{https://github.com/rohan-dv}{\raisebox{-0.2\height}\faGithub\ \underline{GitHub}} ~
+    \href{https://www.codechef.com/users/focus_dude_27}{\raisebox{-0.2\height}\faCode\ \underline{CodeChef}} ~
+    \href{https://leetcode.com/u/rohanyadav27/}{\raisebox{-0.2\height}\faLaptopCode\ \underline{LeetCode}}
+    \vspace{-10pt}
+\end{center}
+
+
+%-----------EDUCATION-----------
+\section{EDUCATION}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Indraprastha Institute of Information Technology, Delhi}{2024 -- Present}
+      {B.Tech - Computer Science and Social Sciences (CSSS) - \textbf{CGPA: 7.65} (till 4th sem)}{}
+  \resumeSubHeadingListEnd
+  \vspace{-8pt}
+  \resumeSubHeadingListStart
+    \resumeSubheading
+      {Sri Krishna Public School, Delhi}{2020 -- 2023}
+      {CBSE -- \textbf{Class XII (PCMB): 92.2\%, \quad Class X: 93.4\%}}{}
+  \resumeSubHeadingListEnd
+  \vspace{-11pt}
+
+
+%-----------SKILLS-----------
+\section{SKILLS}
+ \begin{itemize}[leftmargin=0.15in, label={}]
+    \small{\item{
+    \textbf{\normalsize{Expertise Area:}}{ \normalsize{Data Structures, Algorithms, OOP, DBMS, Operating Systems, Low-Level Programming}} \\
+    \textbf{\normalsize{Languages:}}{ \normalsize{C++, Python, C, Java, SQL, JavaScript, HTML, CSS}} \\
+    \textbf{\normalsize{Tools \& Technologies:}}{ \normalsize{Git, GitHub, VS Code, IntelliJ IDEA, Overleaf, JavaFX, Java Swing, Java AWT, JDBC, Google Colab, Vim, Figma, MySQL}} \\
+    \textbf{\normalsize{Technical Electives:}}{ \normalsize{Computer Organization, Advanced Programming, Analysis \& Design of Algorithms, Linear Algebra, Probability \& Statistics, Convex Optimization}
+    \textbf{\normalsize{Soft Skills:}}{ \normalsize{Leadership, Communication, Public Speaking, Teamwork, Deadline Management, Problem Solving}
+    }}
+ \end{itemize}
+ \vspace{-17pt}
+
+
+%-----------EXPERIENCE-----------
+\section{EXPERIENCE}
+  \resumeSubHeadingListStart
+
+    \resumeSubheading
+      {Research Consultant}{Jun 2026 -- Present}
+      {WorldQuant BRAIN}{}
+      \resumeItemListStart
+        \resumeItem{\normalsize{Researched and tested \textbf{1200+ trading signals (alphas)} using statistical, probability-based, and time-series methods, refining them through iterative backtesting for robustness and predictive accuracy.}}
+      \resumeItemListEnd
+
+    \resumeSubheading
+      {Freelance Web Developer}{May 2026 -- Jun 2026}
+      {HR Logistics}{}
+      \resumeItemListStart
+        \resumeItem{\normalsize{Delivered a responsive, mobile-first logistics platform in \textbf{React.js} and \textbf{Tailwind CSS}, with reusable components and optimized rendering for a fast, scalable UI.}}
+      \resumeItemListEnd
+
+  \resumeSubHeadingListEnd
+\vspace{-10pt}
+
+
+%-----------PROJECTS-----------
+\section{PROJECTS}
+\vspace{-6pt}
+\resumeSubHeadingListStart
+
+\resumeProjectHeading
+{\textbf{\underline{FrugalNav --- GPS-Denied Drone Navigation}} $|$ \underline{Python, NumPy, OpenCV, EuRoC Dataset, C++}
+\hfill \href{https://github.com/rohan-dv}{\faGithub}
+}{Jun 2026 -- Present}
+\resumeItemListStart
+\resumeItem{Engineered the core of a 3-member navigation stack: an uncertainty-aware scheduler that triggers absolute visual fixes only when a fused confidence metric exceeds a threshold, bounding \textbf{visual-inertial odometry} drift while cutting compute and power.}
+\resumeItem{Validated on the real \textbf{EuRoC MAV} dataset; cut final-position error 0.90 m $\rightarrow$ \textbf{0.04 m} at \textbf{$\sim$30\% fewer corrections} vs a fixed-interval baseline, with a kinematic simulator and a \textbf{RISC-V}-targeted portable core.}
+\resumeItemListEnd
+\vspace{-15pt}
+
+\resumeProjectHeading
+{\textbf{\underline{Bootloader \& Minimal OS}} $|$ \underline{C, NASM Assembly, x86 Architecture, QEMU}
+\hfill \href{https://github.com/rohan-dv/bootloader-project}{\faGithub}
+}{Apr 2026 -- May 2026}
+\resumeItemListStart
+\resumeItem{Wrote a multi-stage x86 bootloader in NASM that boots from a 512-byte boot sector, reads further code off disk sector by sector, and hands control to a stage-2 loader.}
+\resumeItem{Added a real-mode shell with live keyboard input by handling BIOS keyboard interrupts directly --- no libraries, all bare-metal assembly --- and mapped the memory layout so stage-1 loads the kernel with zero external dependencies.}
+\resumeItemListEnd
+\vspace{-15pt}
+
+\resumeProjectHeading
+{\textbf{\underline{Rubik's Cube Solver Web App}} $|$ \underline{React, TypeScript, Three.js, FastAPI}
+\hfill \href{https://github.com/rohan-dv/rubikCube-WebApp}{\faGithub}
+}{May 2026 -- Jun 2026}
+\resumeItemListStart
+\resumeItem{Created an interactive 3D cube where users edit any sticker and replay the solution move-by-move at 60 FPS.}
+\resumeItem{Implemented an A* solver with a two-phase (Kociemba) fallback that validates and solves any of 43 quintillion (4.3e19) states in under a second, usually in $\leq$25 moves; served via a FastAPI REST backend, deployed live on Netlify (React) + Render with auto-redeploy on push.}
+\resumeItemListEnd
+\vspace{-15pt}
+
+\resumeProjectHeading
+{\textbf{\underline{ARIA --- AI Mock Interview Web App}} $|$ \underline{FastAPI, React, Gemini Flash, Python}
+\hfill \href{https://github.com/rohan-dv/Ai-mock-interviewApp}{\faGithub}
+}{Mar 2026 -- Jun 2026}
+\resumeItemListStart
+\resumeItem{Built a resume-aware interview backend with 7 question tracks using Gemini Flash, generating adaptive questions and personalized 4-week study roadmaps.}
+\resumeItem{Cut final-scoring time from 18s to under 100ms (\textbf{18$\times$ faster}) by offloading LLM inference to FastAPI BackgroundTasks, with a polling flow that tracks scoring status in real time as jobs run asynchronously.}
+\resumeItemListEnd
+
+\resumeSubHeadingListEnd
+\vspace{-14pt}
+
+
+%-----------AWARDS & ACHIEVEMENTS-----------
+\section{ACHIEVEMENTS AND AWARDS}
+\vspace{-5pt}
+\resumeItemListStart
+\resumeItem{\normalsize{Currently rated \textbf{1832 (4$\star$ Coder)} on CodeChef; solved \textbf{1000+ DSA problems} across LeetCode, CodeChef, GeeksforGeeks, CSES, etc.}}
+\resumeItem{\normalsize{Secured \textbf{3rd rank} in HackArena 2.0 Stage 1 (out of 100+ teams) for an AI-based solution for government scheme discovery and eligibility matching.}}
+\resumeItem{\normalsize{Achieved \textbf{Gold Level} on WorldQuant BRAIN by developing alpha signals that passed the platform's Sharpe, fitness, and low-correlation thresholds for global submission.}}
+\resumeItemListEnd
+\vspace{-3pt}
+
+
+%-----------POSITIONS OF RESPONSIBILITY-----------
+\section{POSITIONS OF RESPONSIBILITY}
+\vspace{-5pt}
+\resumeItemListStart
+\resumeItem{\normalsize{\textbf{Batch Representative}, Student Council (2025--26) \quad $\sbullet$ \quad \textbf{Member}, Hostel Committee (2025--26).}}
+\resumeItem{\normalsize{\textbf{Core Member}, Quant Society (2025--Present) \quad $\sbullet$ \quad \textbf{Core Member}, IGDA (2025--Present).}}
+\resumeItemListEnd
+\vspace{-3pt}
+
+
+%-----------INTERESTS-----------
+\section{INTERESTS \& HOBBIES}
+\vspace{-5pt}
+\resumeItemListStart
+\resumeItem{\normalsize{Competitive Problem Solving \quad $\sbullet$ \quad Half Marathon Runner \quad $\sbullet$ \quad Reverse Engineering}}
+\resumeItemListEnd
+
+
+\end{document}

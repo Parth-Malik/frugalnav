@@ -1,0 +1,13 @@
+# FrugalNav dependencies — CPU-only. No GPU / CUDA / ROS / Gazebo / torch.
+# Create a fresh venv on your machine (the committed .venv, if present, is stale):
+#     python -m venv .venv && . .venv/Scripts/activate   # Windows: .venv\Scripts\activate
+#     pip install -r requirements.txt
+numpy>=1.24
+opencv-contrib-python>=4.8   # ArUco detection + solvePnP + blur score (aruco lives in contrib)
+matplotlib>=3.7              # all plots and the demo figures
+pytest>=7.0                  # the unit test suite
+
+# Optional (mentioned in the plan; the final code computes trajectory error natively
+# in core/metrics.py, so these are NOT required to run anything):
+#   evo>=1.21     # alternative ATE/RMSE trajectory metrics
+#   scipy>=1.10   # alternative regression for offline weight tuning

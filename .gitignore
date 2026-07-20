@@ -1,0 +1,26 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+*.egg-info/
+
+# Virtual environments (the committed .venv, if any, is machine-specific & stale)
+.venv/
+venv/
+env/
+
+# C++ build artifacts
+cpp/build/
+cpp/*.exe
+cpp/*.o
+cpp/*.elf
+
+# Datasets (large; download separately — see README)
+datasets/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

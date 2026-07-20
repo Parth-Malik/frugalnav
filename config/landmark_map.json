@@ -1,0 +1,32 @@
+{
+  "_comment": "Landmark world-frame map. This file DEFINES the world frame: every marker (x,y) is a surveyed constant, and target_B is a fixed point in the same frame. Units: meters, degrees. Edit here to re-survey a site -- no code change needed.",
+
+  "default_marker_size_m": 0.30,
+
+  "markers": [
+    { "id": 0, "x": 0.0,  "y": 6.0 },
+    { "id": 1, "x": 0.0,  "y": 14.0 },
+    { "id": 2, "x": 0.0,  "y": 22.0 },
+    { "id": 3, "x": 0.0,  "y": 30.0 },
+    { "id": 4, "x": 0.0,  "y": 38.0 },
+    { "id": 5, "x": 8.0,  "y": 40.0 },
+    { "id": 6, "x": 16.0, "y": 40.0 },
+    { "id": 7, "x": 24.0, "y": 40.0 },
+    { "id": 8, "x": 30.0, "y": 40.0 }
+  ],
+
+  "target_B_xy": [30.0, 42.0],
+
+  "camera": {
+    "fx": 800.0, "fy": 800.0,
+    "cx": 640.0, "cy": 360.0,
+    "dist": [0.0, 0.0, 0.0, 0.0, 0.0],
+    "_image_size": [1280, 720]
+  },
+
+  "camera_extrinsic": {
+    "_comment": "Camera pose in the drone body frame (T_BC). rpy=[180,0,0] => camera looks straight down (optical Z points at the ground).",
+    "rpy_deg": [180.0, 0.0, 0.0],
+    "xyz": [0.0, 0.0, 0.0]
+  }
+}
