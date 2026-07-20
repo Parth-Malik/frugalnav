@@ -112,6 +112,44 @@ counts for all policies when the sequence ends.
 
 ---
 
+## 3. Interactive arena — fly it yourself
+
+A richer world (`frugalnav_arena.world`: a pillar slalom, buildings, perimeter
+walls, a dense marker field, hard patch, target) with a **multi-mode** node you
+drive from the keyboard. Two terminals:
+
+```bash
+# terminal 1 — the sim (Gazebo + RViz)
+ros2 launch frugalnav_ros interactive_demo.launch.py
+
+# terminal 2 — keyboard mission control
+ros2 run frugalnav_ros frugalnav_teleop.py
+```
+
+…or just double-click **`run_interactive_demo.bat`** on Windows (it opens the sim
+in one window and puts keyboard control in the other).
+
+**Controls (in the teleop terminal):**
+
+| Key | Action |
+|---|---|
+| `1` | **AUTO** — the scheduler flies the drone to the target, weaving the pillars |
+| `2` | **MANUAL** — you fly with **W A S D** (W=north, S=south, A=west, D=east) |
+| `3` | **EUROC** — the drone flies the real EuRoC MH_01 trajectory through the arena |
+| `W`/`A`/`S`/`D` | fly (in MANUAL); `SPACE`/`K` = stop |
+| `R` | **RESET** — teleport the drone back to start & clear the estimate (the "rewind") |
+| `P` | **PAUSE / RESUME** |
+| `Q` | quit teleop |
+
+There is no physics "rewind" in Gazebo, so **R restarts the run** (teleport to
+start + fresh estimator) and **P pauses** — together with manual flight that gives
+you full control. Gazebo's own toolbar also has play / pause / step buttons at the
+bottom, and `Ctrl+R` resets the world.
+
+In **MANUAL** mode the estimator keeps running as you fly, so you can *watch* VIO
+drift accumulate (green truth vs cyan estimate diverging) and see the scheduler fire
+a correction when you pass a marker — a hands-on feel for what the scheduler does.
+
 ## How it maps to the C++ core
 
 Both nodes `#include "frugalnav/uncertainty_scheduler.hpp"` and

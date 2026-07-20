@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.8)
 project(frugalnav_ros)
 
 if(NOT CMAKE_CXX_STANDARD)
-  set(CMAKE_CXX_STANDARD 14)
+  set(CMAKE_CXX_STANDARD 17)   # ROS package (the cpp/ RISC-V port stays C++14)
   set(CMAKE_CXX_STANDARD_REQUIRED ON)
 endif()
 
@@ -28,7 +28,14 @@ ament_target_dependencies(frugalnav_gazebo_node ${DEPS})
 add_executable(frugalnav_euroc_node src/frugalnav_euroc_node.cpp)
 ament_target_dependencies(frugalnav_euroc_node ${DEPS})
 
-install(TARGETS frugalnav_gazebo_node frugalnav_euroc_node
+find_package(gazebo_msgs REQUIRED)
+add_executable(frugalnav_interactive_node src/frugalnav_interactive_node.cpp)
+ament_target_dependencies(frugalnav_interactive_node ${DEPS} gazebo_msgs)
+
+install(TARGETS frugalnav_gazebo_node frugalnav_euroc_node frugalnav_interactive_node
+        DESTINATION lib/${PROJECT_NAME})
+
+install(PROGRAMS scripts/frugalnav_teleop.py
         DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch worlds models rviz config
