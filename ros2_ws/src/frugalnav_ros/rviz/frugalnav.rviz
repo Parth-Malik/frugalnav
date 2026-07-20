@@ -1,0 +1,73 @@
+Panels:
+  - Class: rviz_common/Displays
+    Name: Displays
+    Property Tree Widget:
+      Expanded: ~
+    Help Height: 0
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: true
+      Color: 40; 48; 64
+      Cell Size: 5
+      Plane Cell Count: 24
+      Reference Frame: world
+    - Class: rviz_default_plugins/TF
+      Name: TF
+      Enabled: true
+      Marker Scale: 3
+      Show Names: true
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Scene
+      Enabled: true
+      Namespaces:
+        {}
+      Topic:
+        Depth: 5
+        Durability Policy: Transient Local
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /frugalnav/scene
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Navigation
+      Enabled: true
+      Namespaces:
+        {}
+      Topic:
+        Depth: 5
+        Durability Policy: Volatile
+        History Policy: Keep Last
+        Reliability Policy: Reliable
+        Value: /frugalnav/viz
+  Global Options:
+    Background Color: 10; 15; 26
+    Fixed Frame: world
+    Frame Rate: 30
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+    - Class: rviz_default_plugins/FocusCamera
+    - Class: rviz_default_plugins/Measure
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Current View
+      Distance: 90
+      Focal Point:
+        X: 29
+        Y: 12
+        Z: 0
+      Pitch: 1.28
+      Yaw: 3.9
+      Target Frame: world
+    Saved: ~
+Window Geometry:
+  Displays:
+    collapsed: false
+  Height: 900
+  Width: 1500
+  Hide Left Dock: false
+  Hide Right Dock: true

@@ -63,6 +63,24 @@ bash cpp/build_and_run.sh          # or: g++ -O2 -std=c++14 -Icpp cpp/main.cpp -
 The live web demo needs no server — open `web/index.html` directly, or serve the
 folder (`python -m http.server` inside `web/`).
 
+### Gazebo + RViz + EuRoC (ROS 2 Humble)
+
+A ROS 2 package (`ros2_ws/src/frugalnav_ros`) runs the **same C++ core** as live
+nodes — see [`docs/GAZEBO_DEMO.md`](docs/GAZEBO_DEMO.md). In WSL Ubuntu 22.04:
+
+```bash
+source /opt/ros/humble/setup.bash
+cd ros2_ws && colcon build --symlink-install && source install/setup.bash
+
+ros2 launch frugalnav_ros gazebo_demo.launch.py   # drone flies to B in Gazebo, viz in RViz
+ros2 launch frugalnav_ros euroc_demo.launch.py    # scheduler over real EuRoC MH_01, in RViz
+```
+
+The Gazebo node drives a real simulated drone with the scheduler+controller
+(verified: homes to the target with 3 uncertainty-scheduled fixes); the EuRoC node
+runs the scheduler over the real MH_01 trajectory (truth vs pure-VIO drift vs
+uncertainty-aware, in RViz).
+
 ## What each command shows
 
 | Command | Output |

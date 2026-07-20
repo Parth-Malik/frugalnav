@@ -1,0 +1,73 @@
+<?xml version="1.0" ?>
+<!-- FrugalNav Gazebo world: matches harness/integrated_sim.py (start 58,24 -> B 0,0),
+     with the feature-poor hard patch, the obstacle, ArUco-marker ground tiles, and a
+     target pole at B. The drone is spawned separately (models/frugalnav_drone). -->
+<sdf version="1.6">
+  <world name="frugalnav">
+    <gravity>0 0 -9.81</gravity>
+
+    <light name="sun" type="directional">
+      <cast_shadows>true</cast_shadows>
+      <pose>0 0 30 0 0 0</pose>
+      <diffuse>0.9 0.9 0.9 1</diffuse>
+      <specular>0.2 0.2 0.2 1</specular>
+      <direction>-0.4 0.3 -0.9</direction>
+    </light>
+
+    <model name="ground">
+      <static>true</static>
+      <link name="link">
+        <collision name="c"><geometry><plane><normal>0 0 1</normal><size>200 200</size></plane></geometry></collision>
+        <visual name="v">
+          <geometry><plane><normal>0 0 1</normal><size>200 200</size></plane></geometry>
+          <material><ambient>0.12 0.14 0.18 1</ambient><diffuse>0.16 0.19 0.24 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- feature-poor "hard patch" (flat translucent disc) at frac 0.34 -->
+    <model name="hard_patch">
+      <static>true</static>
+      <pose>38.28 15.84 0.02 0 0 0</pose>
+      <link name="link"><visual name="v">
+        <geometry><cylinder><radius>9.0</radius><length>0.02</length></cylinder></geometry>
+        <material><ambient>0.96 0.62 0.04 0.25</ambient><diffuse>0.96 0.62 0.04 0.25</diffuse></material>
+      </visual></link>
+    </model>
+
+    <!-- obstacle at frac 0.52, lateral 1.5 -->
+    <model name="obstacle">
+      <static>true</static>
+      <pose>28.41 10.13 1.0 0 0 0</pose>
+      <link name="link">
+        <collision name="c"><geometry><cylinder><radius>2.3</radius><length>2.0</length></cylinder></geometry></collision>
+        <visual name="v">
+          <geometry><cylinder><radius>2.3</radius><length>2.0</length></cylinder></geometry>
+          <material><ambient>0.33 0.33 0.36 1</ambient><diffuse>0.4 0.4 0.44 1</diffuse></material>
+        </visual>
+      </link>
+    </model>
+
+    <!-- target pole at B=(0,0) -->
+    <model name="target_B">
+      <static>true</static>
+      <pose>0 0 1.5 0 0 0</pose>
+      <link name="link"><visual name="v">
+        <geometry><cylinder><radius>0.6</radius><length>3.0</length></cylinder></geometry>
+        <material><ambient>0.98 0.75 0.14 1</ambient><diffuse>0.98 0.75 0.14 1</diffuse><emissive>0.4 0.3 0.0 1</emissive></material>
+      </visual></link>
+    </model>
+
+    <!-- ArUco-marker ground tiles along the route -->
+    <model name="m0"><static>true</static><pose>49.88 20.64 0.03 0 0 0</pose><link name="l"><visual name="v"><geometry><box><size>0.8 0.8 0.05</size></box></geometry><material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="m1"><static>true</static><pose>41.76 17.28 0.03 0 0 0</pose><link name="l"><visual name="v"><geometry><box><size>0.8 0.8 0.05</size></box></geometry><material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="m2"><static>true</static><pose>33.64 13.92 0.03 0 0 0</pose><link name="l"><visual name="v"><geometry><box><size>0.8 0.8 0.05</size></box></geometry><material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="m3"><static>true</static><pose>23.2 9.6 0.03 0 0 0</pose><link name="l"><visual name="v"><geometry><box><size>0.8 0.8 0.05</size></box></geometry><material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="m4"><static>true</static><pose>14.5 6.0 0.03 0 0 0</pose><link name="l"><visual name="v"><geometry><box><size>0.8 0.8 0.05</size></box></geometry><material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="m5"><static>true</static><pose>6.96 2.88 0.03 0 0 0</pose><link name="l"><visual name="v"><geometry><box><size>0.8 0.8 0.05</size></box></geometry><material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+
+    <model name="start_pad"><static>true</static><pose>58 24 0.02 0 0 0</pose><link name="l"><visual name="v"><geometry><cylinder><radius>1.0</radius><length>0.02</length></cylinder></geometry><material><ambient>0.2 0.83 0.44 0.8</ambient></material></visual></link></model>
+
+    <physics name="ode" type="ode"><max_step_size>0.004</max_step_size><real_time_update_rate>250</real_time_update_rate></physics>
+  </world>
+</sdf>

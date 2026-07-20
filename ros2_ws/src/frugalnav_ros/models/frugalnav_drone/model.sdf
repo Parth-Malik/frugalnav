@@ -1,0 +1,56 @@
+<?xml version="1.0" ?>
+<!-- Holonomic "drone": moved by /frugalnav/cmd_vel (planar_move) and reporting its
+     absolute ground-truth pose on /frugalnav/truth (p3d). Gravity is disabled so it
+     hovers at a fixed altitude and the FrugalNav node fully controls its x/y. -->
+<sdf version="1.6">
+  <model name="frugalnav_drone">
+    <link name="base_link">
+      <gravity>0</gravity>
+      <inertial>
+        <mass>1.0</mass>
+        <inertia><ixx>0.02</ixx><iyy>0.02</iyy><izz>0.03</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia>
+      </inertial>
+      <collision name="c">
+        <geometry><box><size>0.5 0.5 0.15</size></box></geometry>
+      </collision>
+      <visual name="body">
+        <geometry><box><size>0.5 0.5 0.15</size></box></geometry>
+        <material><ambient>0.22 0.74 0.97 1</ambient><diffuse>0.22 0.74 0.97 1</diffuse><emissive>0.05 0.2 0.3 1</emissive></material>
+      </visual>
+      <visual name="arm1"><pose>0.3 0.3 0 0 0 0</pose><geometry><cylinder><radius>0.08</radius><length>0.05</length></cylinder></geometry><material><ambient>0.1 0.1 0.12 1</ambient></material></visual>
+      <visual name="arm2"><pose>-0.3 0.3 0 0 0 0</pose><geometry><cylinder><radius>0.08</radius><length>0.05</length></cylinder></geometry><material><ambient>0.1 0.1 0.12 1</ambient></material></visual>
+      <visual name="arm3"><pose>0.3 -0.3 0 0 0 0</pose><geometry><cylinder><radius>0.08</radius><length>0.05</length></cylinder></geometry><material><ambient>0.1 0.1 0.12 1</ambient></material></visual>
+      <visual name="arm4"><pose>-0.3 -0.3 0 0 0 0</pose><geometry><cylinder><radius>0.08</radius><length>0.05</length></cylinder></geometry><material><ambient>0.1 0.1 0.12 1</ambient></material></visual>
+    </link>
+
+    <!-- motion: subscribe /frugalnav/cmd_vel, move holonomically, publish odom (no TF) -->
+    <plugin name="planar_move" filename="libgazebo_ros_planar_move.so">
+      <ros>
+        <namespace>/frugalnav</namespace>
+        <remapping>cmd_vel:=cmd_vel</remapping>
+        <remapping>odom:=odom_planar</remapping>
+      </ros>
+      <update_rate>50</update_rate>
+      <publish_rate>50</publish_rate>
+      <publish_odom>true</publish_odom>
+      <publish_odom_tf>false</publish_odom_tf>
+      <odometry_frame>world</odometry_frame>
+      <robot_base_frame>base_link</robot_base_frame>
+      <covariance_x>0.0</covariance_x>
+      <covariance_y>0.0</covariance_y>
+      <covariance_yaw>0.0</covariance_yaw>
+    </plugin>
+
+    <!-- absolute ground truth: publish base_link pose (world frame) on /frugalnav/truth -->
+    <plugin name="p3d" filename="libgazebo_ros_p3d.so">
+      <ros>
+        <namespace>/frugalnav</namespace>
+        <remapping>odom:=truth</remapping>
+      </ros>
+      <body_name>base_link</body_name>
+      <frame_name>world</frame_name>
+      <update_rate>50</update_rate>
+      <gaussian_noise>0.0</gaussian_noise>
+    </plugin>
+  </model>
+</sdf>

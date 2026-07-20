@@ -24,3 +24,8 @@ datasets/
 Thumbs.db
 .vscode/
 .idea/
+
+# ROS 2 build artifacts
+ros2_ws/build/
+ros2_ws/install/
+ros2_ws/log/
