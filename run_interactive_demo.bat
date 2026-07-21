@@ -1,10 +1,11 @@
 @echo off
 REM ============================================================
-REM  FrugalNav - INTERACTIVE Gazebo + RViz demo (double-click)
-REM  Opens the sim in its own window, and keyboard control HERE.
+REM  FrugalNav - INTERACTIVE demo map (Gazebo + RViz) - double-click
+REM  Sim in its own window; keyboard + weather control HERE.
+REM  (For the dense forest, run run_canopy_map.bat instead.)
 REM
-REM  Press 2 to take manual control, then fly with W A S D.
-REM  1=auto  2=manual  3=euroc  R=reset(rewind)  P=pause  Q=quit
+REM  1 AUTO  2 MANUAL(WASD)  3 EUROC   R rewind  P pause  Q quit
+REM  U/N altitude  M auto-alt   ] [ wind   - = fog   T rain   G weather
 REM ============================================================
 set ROSENV=source /opt/ros/humble/setup.bash ^&^& source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
 echo.

@@ -112,52 +112,55 @@ counts for all policies when the sequence ends.
 
 ---
 
-## 3. Interactive arena — fly it yourself
+## 3. Interactive maps — fly it yourself, with weather
 
-A richer world (`frugalnav_arena.world`: a pillar slalom, buildings, perimeter
-walls, a dense marker field, hard patch, target) with a **multi-mode** node you
-drive from the keyboard. Two terminals:
+Two maps, one node. Obstacles are **tall (≈14 m)** so they are real collision
+hazards at flight altitude, and the avoider is a **stern potential field**.
+
+- **demo** — the towers/buildings arena, markers across the whole field.
+- **canopy** — a dense forest of ~43 tree trunks, the classic GPS-denied scenario.
+
+Windows: double-click **`run_interactive_demo.bat`** (demo) or
+**`run_canopy_map.bat`** (canopy). Or two terminals:
 
 ```bash
-# terminal 1 — the sim (Gazebo + RViz)
-ros2 launch frugalnav_ros interactive_demo.launch.py
-
-# terminal 2 — keyboard mission control
+# terminal 1 — the sim (pick a map)
+ros2 launch frugalnav_ros interactive_demo.launch.py map:=demo     # or map:=canopy
+# terminal 2 — mission control + weather
 ros2 run frugalnav_ros frugalnav_teleop.py
 ```
 
-…or just double-click **`run_interactive_demo.bat`** on Windows (it opens the sim
-in one window and puts keyboard control in the other).
-
 **Controls (in the teleop terminal):**
 
-| Key | Action |
+| Keys | Action |
 |---|---|
-| `1` | **AUTO** — the scheduler flies the drone to the target, weaving the pillars |
-| `2` | **MANUAL** — you fly with **W A S D** (W=north, S=south, A=west, D=east) |
-| `3` | **EUROC** — the drone flies the real EuRoC MH_01 trajectory through the arena |
-| `W`/`A`/`S`/`D` | fly (in MANUAL); `SPACE`/`K` = stop |
-| `R` | **RESET** — teleport the drone back to start & clear the estimate (the "rewind") |
-| `P` | **PAUSE / RESUME** |
-| `G` | toggle **WEATHER** (wind + fog) on/off |
-| `Q` | quit teleop |
+| `1` / `2` / `3` | mode: **AUTO** / **MANUAL** / **EUROC** replay |
+| `W A S D` | fly in MANUAL (W=N, S=S, A=W, D=E); `SPACE` = stop |
+| `U` / `N` | altitude **up / down** (manual) |
+| `M` | altitude **auto** (computed from visibility) |
+| `]` / `[` | wind **stronger / weaker** |
+| `-` / `=` | **more fog / clearer** (visibility) |
+| `T` | toggle **rain** |
+| `G` | weather master **on / off** |
+| `R` | **RESET** — teleport to start & clear estimate (the "rewind") |
+| `P` | pause / resume · `Q` quit |
 
-**Live environment (toggle with `G`):**
+The HUD (top of RViz) shows `mode`, `fixes`, `U`, and the live weather:
+`wind`, `vis`, `rain`, `alt`.
 
-- **Wind** — a gusting disturbance added to the drone's motion; the controller has
-  to fight it, so paths bow and weave. Shown as a light-blue arrow over the drone.
-- **Visibility / weather** — slow fog cycles worsen the camera cues (blur ↑,
-  features ↓), so **U rises and the scheduler corrects more in bad weather**, and
-  the marker detection range shrinks.
-- **Altitude from visibility** — the nav system computes cruise altitude from
-  visibility (clear → fly high ~8 m, fog → descend ~4 m to keep markers
-  detectable) and applies it to the drone. The HUD shows `vis`, `alt`, and `wind`.
+**Weather simulator (full manual control):**
 
-**Obstacle avoidance is a potential field** (not just time-to-contact): every pillar
-within ~4 m pushes the drone away with a force that grows sharply as it gets closer,
-and the component of the seek command heading *into* a pillar is cancelled. So even
-if you fly up to a pillar in MANUAL and then hit `1` (AUTO), it pushes off and around
-rather than colliding.
+- **Wind** — a gusting disturbance the controller fights (blue arrow over the drone).
+- **Visibility / fog / rain** — worsen the camera cues, so **U rises and the
+  scheduler corrects more in bad weather**, and marker detection range shrinks.
+- **Altitude** — set it yourself (`U`/`N`), or `M` for auto: the nav system computes
+  cruise altitude from visibility (clear → high ~8 m, fog → descend to keep markers
+  detectable). Obstacles are tall, so at flight altitude you must go *around*, not over.
+
+**Stern avoidance.** Every obstacle within `radius + ~3.6 m` pushes the drone away
+with a force growing as `1/distance`, and the seek component heading *into* an
+obstacle is fully cancelled — verified to keep positive clearance even when AUTO is
+engaged with the drone already touching an obstacle, on both maps.
 
 There is no physics "rewind" in Gazebo, so **R restarts the run** (teleport to
 start + fresh estimator) and **P pauses** — together with manual flight that gives

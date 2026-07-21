@@ -1,13 +1,12 @@
 #!/usr/bin/env python3
 """
-FrugalNav keyboard teleop / mission control. Run in its own terminal; keypresses
-fly the drone and switch modes on the interactive node.
+FrugalNav keyboard mission control + weather simulator. Run in its own terminal.
 
     ros2 run frugalnav_ros frugalnav_teleop.py
 
 Publishes:
     /frugalnav/teleop  (geometry_msgs/Twist)  -- manual velocity (world XY)
-    /frugalnav/ctrl    (std_msgs/String)      -- auto|manual|euroc|reset|pause|resume
+    /frugalnav/ctrl    (std_msgs/String)      -- modes, reset/pause, altitude, weather
 """
 import select
 import sys
@@ -22,23 +21,20 @@ from std_msgs.msg import String
 SPEED = 2.0
 
 BANNER = """
-============================================================
-  FrugalNav  --  keyboard mission control
-============================================================
-  FLY (MANUAL mode):   W = north(+Y)   S = south(-Y)
-                       A = west(-X)    D = east(+X)
-                       SPACE / K = stop
-
-  MODES:   1 = AUTO    (scheduler flies to the target)
-           2 = MANUAL  (you fly with WASD)
-           3 = EUROC   (replay the real EuRoC MH_01 flight)
-
-  R = RESET  (teleport drone back to start = "rewind")
-  P = PAUSE / RESUME       G = weather ON/OFF (wind + fog)
-  Q or Ctrl-C = quit
-------------------------------------------------------------
-  Tip: press 2 first to take manual control, then fly with WASD.
-============================================================
+================================================================
+  FrugalNav  --  mission control + weather simulator
+================================================================
+  FLY (manual):   W north   S south   A west   D east   SPACE stop
+  ALTITUDE:       U up       N down     M = auto (from visibility)
+  MODES:          1 AUTO     2 MANUAL   3 EUROC replay
+  WEATHER:        ] wind+    [ wind-      (gusting disturbance)
+                  - fog+     = clearer    (visibility)
+                  T rain on/off           G weather master on/off
+  SIM:            R RESET (rewind)   P pause/resume   Q quit
+----------------------------------------------------------------
+  Press 2 to take manual control, then fly with WASD.
+  Watch the HUD (top of RViz) for mode / wind / vis / rain / alt.
+================================================================
 """
 
 
@@ -56,6 +52,16 @@ class Teleop(Node):
         m = String(); m.data = s; self.ctrl.publish(m)
 
 
+KEYMAP = {
+    '1': ('auto', 'AUTO'), '2': ('manual', 'MANUAL (fly with WASD)'), '3': ('euroc', 'EUROC replay'),
+    'r': ('reset', 'RESET (rewind to start)'),
+    'u': ('alt_up', 'altitude UP'), 'n': ('alt_down', 'altitude DOWN'), 'm': ('alt_auto', 'altitude AUTO'),
+    ']': ('wind_up', 'wind +'), '[': ('wind_down', 'wind -'),
+    '-': ('fog_up', 'more fog'), '=': ('fog_down', 'clearer'),
+    't': ('rain', 'toggle rain'), 'g': ('weather', 'toggle weather master'),
+}
+
+
 def get_key(settings, timeout=0.1):
     tty.setraw(sys.stdin.fileno())
     r, _, _ = select.select([sys.stdin], [], [], timeout)
@@ -68,29 +74,26 @@ def main():
     rclpy.init()
     node = Teleop()
     settings = termios.tcgetattr(sys.stdin)
-    sys.stdout.write(BANNER)
-    sys.stdout.flush()
+    sys.stdout.write(BANNER); sys.stdout.flush()
     try:
         while rclpy.ok():
             k = get_key(settings)
             if k:
-                k = k.lower()
-                if k in ('\x03', 'q'):
+                if k in ('\x03', 'q', 'Q'):
                     break
-                elif k == 'w': node.vel(0, SPEED)
-                elif k == 's': node.vel(0, -SPEED)
-                elif k == 'a': node.vel(-SPEED, 0)
-                elif k == 'd': node.vel(SPEED, 0)
+                kl = k.lower()
+                if kl == 'w': node.vel(0, SPEED)
+                elif kl == 's': node.vel(0, -SPEED)
+                elif kl == 'a': node.vel(-SPEED, 0)
+                elif kl == 'd': node.vel(SPEED, 0)
                 elif k in (' ', 'k'): node.vel(0, 0)
-                elif k == '1': node.say('auto'); print(' -> AUTO\r')
-                elif k == '2': node.say('manual'); print(' -> MANUAL (fly with WASD)\r')
-                elif k == '3': node.say('euroc'); print(' -> EUROC replay\r')
-                elif k == 'r': node.say('reset'); print(' -> RESET (drone back to start)\r')
-                elif k == 'p':
+                elif kl == 'p':
                     node.paused = not node.paused
                     node.say('pause' if node.paused else 'resume')
                     print(' -> PAUSED\r' if node.paused else ' -> RESUMED\r')
-                elif k == 'g': node.say('weather'); print(' -> toggled WEATHER (wind + fog)\r')
+                elif k in KEYMAP or kl in KEYMAP:
+                    cmd, label = KEYMAP.get(k, KEYMAP.get(kl))
+                    node.say(cmd); print(f' -> {label}\r')
             rclpy.spin_once(node, timeout_sec=0.0)
     finally:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)

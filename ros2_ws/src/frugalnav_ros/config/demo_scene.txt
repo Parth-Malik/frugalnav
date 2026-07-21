@@ -1,0 +1,46 @@
+target 0.000 0.000
+start 58.000 24.000
+hard 35.960 14.880 8.000
+pillar 41.518 14.582 2.200
+pillar 31.409 16.027 2.200
+pillar 26.514 8.158 2.600
+pillar 16.482 9.418 2.200
+pillar 11.128 2.657 2.000
+marker 4.000 0.000
+marker 4.000 7.000
+marker 4.000 14.000
+marker 4.000 21.000
+marker 4.000 28.000
+marker 11.000 14.000
+marker 11.000 21.000
+marker 11.000 28.000
+marker 18.000 0.000
+marker 18.000 14.000
+marker 18.000 21.000
+marker 18.000 28.000
+marker 25.000 0.000
+marker 25.000 14.000
+marker 25.000 21.000
+marker 25.000 28.000
+marker 32.000 0.000
+marker 32.000 7.000
+marker 32.000 21.000
+marker 32.000 28.000
+marker 39.000 0.000
+marker 39.000 7.000
+marker 39.000 21.000
+marker 39.000 28.000
+marker 46.000 0.000
+marker 46.000 7.000
+marker 46.000 21.000
+marker 46.000 28.000
+marker 53.000 0.000
+marker 53.000 7.000
+marker 53.000 14.000
+marker 53.000 21.000
+marker 53.000 28.000
+marker 60.000 0.000
+marker 60.000 7.000
+marker 60.000 14.000
+marker 60.000 21.000
+marker 60.000 28.000
