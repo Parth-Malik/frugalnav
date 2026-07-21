@@ -3,6 +3,11 @@
 <sdf version="1.6">
   <world name="frugalnav_arena">
     <gravity>0 0 -9.81</gravity>
+    <scene>
+      <ambient>0.45 0.47 0.5 1</ambient><background>0.62 0.66 0.72 1</background>
+      <shadows>true</shadows>
+      <fog><color>0.66 0.69 0.74 1</color><type>linear</type><start>18</start><end>85</end><density>0.02</density></fog>
+    </scene>
     <light name="sun" type="directional"><cast_shadows>true</cast_shadows>
       <pose>0 0 40 0 0 0</pose><diffuse>0.9 0.9 0.9 1</diffuse>
       <specular>0.2 0.2 0.2 1</specular><direction>-0.4 0.3 -0.9</direction></light>
@@ -61,31 +66,124 @@
       <link name="l"><collision name="c"><geometry><box><size>7.0 4.0 5.0</size></box></geometry></collision>
       <visual name="v"><geometry><box><size>7.0 4.0 5.0</size></box></geometry>
       <material><ambient>0.28 0.3 0.38 1</ambient><diffuse>0.28 0.3 0.38 1</diffuse></material></visual></link></model>
-    <model name="marker0"><static>true</static><pose>52.200 21.600 0.03 0 0 0</pose>
+    <model name="marker0"><static>true</static><pose>4.000 0.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
-    <model name="marker1"><static>true</static><pose>46.400 19.200 0.03 0 0 0</pose>
+    <model name="marker1"><static>true</static><pose>4.000 7.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
-    <model name="marker2"><static>true</static><pose>40.600 16.800 0.03 0 0 0</pose>
+    <model name="marker2"><static>true</static><pose>4.000 14.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
-    <model name="marker3"><static>true</static><pose>34.800 14.400 0.03 0 0 0</pose>
+    <model name="marker3"><static>true</static><pose>4.000 21.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
-    <model name="marker4"><static>true</static><pose>29.000 12.000 0.03 0 0 0</pose>
+    <model name="marker4"><static>true</static><pose>4.000 28.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
-    <model name="marker5"><static>true</static><pose>22.040 9.120 0.03 0 0 0</pose>
+    <model name="marker5"><static>true</static><pose>11.000 7.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
-    <model name="marker6"><static>true</static><pose>15.080 6.240 0.03 0 0 0</pose>
+    <model name="marker6"><static>true</static><pose>11.000 14.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
-    <model name="marker7"><static>true</static><pose>8.120 3.360 0.03 0 0 0</pose>
+    <model name="marker7"><static>true</static><pose>11.000 21.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
-    <model name="marker8"><static>true</static><pose>3.480 1.440 0.03 0 0 0</pose>
+    <model name="marker8"><static>true</static><pose>11.000 28.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker9"><static>true</static><pose>18.000 0.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker10"><static>true</static><pose>18.000 14.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker11"><static>true</static><pose>18.000 21.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker12"><static>true</static><pose>18.000 28.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker13"><static>true</static><pose>25.000 0.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker14"><static>true</static><pose>25.000 14.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker15"><static>true</static><pose>25.000 21.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker16"><static>true</static><pose>25.000 28.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker17"><static>true</static><pose>32.000 0.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker18"><static>true</static><pose>32.000 7.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker19"><static>true</static><pose>32.000 21.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker20"><static>true</static><pose>32.000 28.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker21"><static>true</static><pose>39.000 0.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker22"><static>true</static><pose>39.000 7.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker23"><static>true</static><pose>39.000 21.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker24"><static>true</static><pose>39.000 28.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker25"><static>true</static><pose>46.000 0.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker26"><static>true</static><pose>46.000 7.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker27"><static>true</static><pose>46.000 14.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker28"><static>true</static><pose>46.000 21.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker29"><static>true</static><pose>46.000 28.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker30"><static>true</static><pose>53.000 0.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker31"><static>true</static><pose>53.000 7.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker32"><static>true</static><pose>53.000 14.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker33"><static>true</static><pose>53.000 21.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker34"><static>true</static><pose>53.000 28.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker35"><static>true</static><pose>60.000 0.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker36"><static>true</static><pose>60.000 7.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker37"><static>true</static><pose>60.000 14.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker38"><static>true</static><pose>60.000 21.000 0.03 0 0 0</pose>
+      <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
+      <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
+    <model name="marker39"><static>true</static><pose>60.000 28.000 0.03 0 0 0</pose>
       <link name="l"><visual name="v"><geometry><box><size>0.9 0.9 0.05</size></box></geometry>
       <material><ambient>0.95 0.95 0.98 1</ambient></material></visual></link></model>
     <model name="target_B"><static>true</static><pose>0.000 0.000 1.5 0 0 0</pose>

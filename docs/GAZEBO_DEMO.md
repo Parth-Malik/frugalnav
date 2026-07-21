@@ -139,7 +139,25 @@ in one window and puts keyboard control in the other).
 | `W`/`A`/`S`/`D` | fly (in MANUAL); `SPACE`/`K` = stop |
 | `R` | **RESET** — teleport the drone back to start & clear the estimate (the "rewind") |
 | `P` | **PAUSE / RESUME** |
+| `G` | toggle **WEATHER** (wind + fog) on/off |
 | `Q` | quit teleop |
+
+**Live environment (toggle with `G`):**
+
+- **Wind** — a gusting disturbance added to the drone's motion; the controller has
+  to fight it, so paths bow and weave. Shown as a light-blue arrow over the drone.
+- **Visibility / weather** — slow fog cycles worsen the camera cues (blur ↑,
+  features ↓), so **U rises and the scheduler corrects more in bad weather**, and
+  the marker detection range shrinks.
+- **Altitude from visibility** — the nav system computes cruise altitude from
+  visibility (clear → fly high ~8 m, fog → descend ~4 m to keep markers
+  detectable) and applies it to the drone. The HUD shows `vis`, `alt`, and `wind`.
+
+**Obstacle avoidance is a potential field** (not just time-to-contact): every pillar
+within ~4 m pushes the drone away with a force that grows sharply as it gets closer,
+and the component of the seek command heading *into* a pillar is cancelled. So even
+if you fly up to a pillar in MANUAL and then hit `1` (AUTO), it pushes off and around
+rather than colliding.
 
 There is no physics "rewind" in Gazebo, so **R restarts the run** (teleport to
 start + fresh estimator) and **P pauses** — together with manual flight that gives

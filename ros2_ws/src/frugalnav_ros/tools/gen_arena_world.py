@@ -41,8 +41,18 @@ PILLARS = [  # (x, y, radius) -- a slalom the auto-pilot must weave through
     (*lateral(0.70, -2.4), 1.5),
     (*lateral(0.82, 1.8), 1.3),
 ]
-MARKERS = [lateral(f, 0.0) for f in
-           (0.10, 0.20, 0.30, 0.40, 0.50, 0.62, 0.74, 0.86, 0.94)]
+def _make_markers():
+    # ArUco markers on a grid across the WHOLE field (not just the path), so an
+    # absolute fix is available almost anywhere. Skip cells that hit a pillar.
+    out = []
+    for mx in range(4, 61, 7):
+        for my in range(0, 31, 7):
+            if all(math.hypot(mx - px, my - py) > pr + 2.2 for (px, py, pr) in PILLARS):
+                out.append((float(mx), float(my)))
+    return out
+
+
+MARKERS = _make_markers()
 HARD = (*lerp(START, TARGET, 0.38), 8.0)     # (x, y, radius)
 
 # arena bounds (enclose the corridor with margin)
@@ -117,6 +127,11 @@ def build_world():
 <sdf version="1.6">
   <world name="frugalnav_arena">
     <gravity>0 0 -9.81</gravity>
+    <scene>
+      <ambient>0.45 0.47 0.5 1</ambient><background>0.62 0.66 0.72 1</background>
+      <shadows>true</shadows>
+      <fog><color>0.66 0.69 0.74 1</color><type>linear</type><start>18</start><end>85</end><density>0.02</density></fog>
+    </scene>
     <light name="sun" type="directional"><cast_shadows>true</cast_shadows>
       <pose>0 0 40 0 0 0</pose><diffuse>0.9 0.9 0.9 1</diffuse>
       <specular>0.2 0.2 0.2 1</specular><direction>-0.4 0.3 -0.9</direction></light>

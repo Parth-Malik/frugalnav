@@ -1,19 +1,24 @@
 // frugalnav_interactive_node.cpp
 // -----------------------------------------------------------------------------
-// Interactive FrugalNav brain for the Gazebo arena. Three modes, live-switchable
-// from the keyboard teleop:
+// Interactive FrugalNav brain for the Gazebo arena, with a live environment.
 //
-//   AUTO    the uncertainty scheduler flies the drone to the target, weaving the
-//           pillar slalom (obstacle avoidance) and correcting drift at markers.
-//   MANUAL  YOU fly with WASD; the estimator still runs, so you watch VIO drift
-//           accumulate as you fly and see where/when the scheduler would correct.
-//   EUROC   the drone flies the real EuRoC MH_01 trajectory (as moving waypoints)
-//           through the arena, with the scheduler running on it.
+//   MODES (switch from teleop):
+//     AUTO    the scheduler flies to the target, weaving the pillar slalom with a
+//             STERN potential-field avoider (guaranteed standoff, even from a dead
+//             stop right against a pillar).
+//     MANUAL  you fly with WASD; the estimator keeps running so you watch VIO drift
+//             and the scheduler correct at markers (which now blanket the field).
+//     EUROC   the drone flies the real EuRoC MH_01 trajectory through the arena.
 //
-// Controls come in on /frugalnav/ctrl (std_msgs/String): auto|manual|euroc|reset|
-// pause|resume. RESET teleports the drone back to start (via /gazebo/set_entity_state)
-// and clears the estimator -- the practical "rewind". The scheduler / fusion /
-// controller / avoidance are the unmodified C++ core (cpp/frugalnav/).
+//   ENVIRONMENT (always live, toggle with 'weather'):
+//     WIND        a gusting wind disturbance the controller must fight.
+//     VISIBILITY  slow weather: fog worsens the camera cues (U rises -> the
+//                 scheduler corrects more) and shrinks marker detection range.
+//     ALTITUDE    computed from visibility -- clear=fly high, fog=descend to keep
+//                 markers detectable -- and applied to the Gazebo drone.
+//
+//   RESET teleports the drone back to start (the "rewind"); PAUSE halts.
+//   The scheduler / fusion / controller are the unmodified C++ core (cpp/frugalnav/).
 #include <algorithm>
 #include <cmath>
 #include <cstdio>
@@ -61,9 +66,7 @@ public:
     load_euroc();
 
     controller_.B = B_; controller_.kp = 0.6f; controller_.v_max = 2.2f;
-    controller_.arrive_tol = 1.4f;
-    avoider_.ttc_trigger = 3.4f; avoider_.ttc_release = 4.8f;
-    avoider_.ttc_min = 0.5f; avoider_.gain = 5.5f;
+    controller_.arrive_tol = 1.5f;
     reset_estimator();
 
     cmd_pub_ = create_publisher<geometry_msgs::msg::Twist>("/frugalnav/cmd_vel", 10);
@@ -77,7 +80,7 @@ public:
     truth_sub_ = create_subscription<nav_msgs::msg::Odometry>(
         "/frugalnav/truth", 20, [this](nav_msgs::msg::Odometry::SharedPtr m) {
           true_.x = m->pose.pose.position.x; true_.y = m->pose.pose.position.y;
-          have_truth_ = true; });
+          true_z_ = m->pose.pose.position.z; have_truth_ = true; });
     teleop_sub_ = create_subscription<geometry_msgs::msg::Twist>(
         "/frugalnav/teleop", 20, [this](geometry_msgs::msg::Twist::SharedPtr m) {
           teleop_ = {float(m->linear.x), float(m->linear.y)}; teleop_age_ = 0; });
@@ -86,7 +89,7 @@ public:
 
     publish_scene();
     timer_ = create_wall_timer(33ms, [this] { step(); });
-    RCLCPP_INFO(get_logger(), "Interactive node up. Mode=AUTO. Use the teleop window to fly / switch modes / reset.");
+    RCLCPP_INFO(get_logger(), "Interactive node up. Mode=AUTO, weather ON. Fly / switch / reset from the teleop window.");
   }
 
 private:
@@ -102,9 +105,8 @@ private:
       if (v.size() >= 3) raw.push_back({float(v[1]), float(v[2])});
     }
     if (raw.size() < 10) return;
-    Vec2 o = raw[0]; float sc = 2.2f;                 // scale up, place near start
-    for (auto &p : raw) euroc_.push_back({start_.x + (p.x - o.x) * sc,
-                                          start_.y + (p.y - o.y) * sc});
+    Vec2 o = raw[0]; float sc = 2.2f;
+    for (auto &p : raw) euroc_.push_back({start_.x + (p.x - o.x) * sc, start_.y + (p.y - o.y) * sc});
     double acc = 1e9; Vec2 prev = euroc_[0];
     for (auto &p : euroc_) { acc += dd(p, prev); prev = p;
       if (acc >= 3.0) { euroc_markers_.push_back(p); acc = 0; } }
@@ -118,31 +120,45 @@ private:
     used_.assign(std::max(markers_.size(), euroc_markers_.size()), 0);
     euroc_wp_ = 0;
   }
-  void teleport_to_start() {
-    if (!set_state_->service_is_ready()) {
-      RCLCPP_WARN(get_logger(), "set_entity_state not ready; estimator reset only.");
-      return;
-    }
+  void teleport(Vec2 xy, double z) {
+    if (!set_state_->service_is_ready()) return;
     auto req = std::make_shared<gazebo_msgs::srv::SetEntityState::Request>();
     req->state.name = "frugalnav_drone"; req->state.reference_frame = "world";
-    req->state.pose.position.x = start_.x; req->state.pose.position.y = start_.y;
-    req->state.pose.position.z = 0.5; req->state.pose.orientation.w = 1.0;
+    req->state.pose.position.x = xy.x; req->state.pose.position.y = xy.y;
+    req->state.pose.position.z = z; req->state.pose.orientation.w = 1.0;
+    req->state.twist.linear.x = vel_.x; req->state.twist.linear.y = vel_.y;   // preserve motion
     set_state_->async_send_request(req);
   }
-
   void on_ctrl(const std::string &c) {
     if (c == "auto") { mode_ = Mode::AUTO; arrived_ = false; }
     else if (c == "manual") mode_ = Mode::MANUAL;
-    else if (c == "euroc") { mode_ = Mode::EUROC; reset_estimator(); teleport_to_start(); }
-    else if (c == "reset") { reset_estimator(); teleport_to_start(); }
+    else if (c == "euroc") { mode_ = Mode::EUROC; reset_estimator(); teleport(start_, 0.5); }
+    else if (c == "reset") { reset_estimator(); teleport(start_, 0.5); }
     else if (c == "pause") paused_ = true;
     else if (c == "resume") paused_ = false;
-    RCLCPP_INFO(get_logger(), "ctrl=%s -> mode=%s paused=%d", c.c_str(), mode_str(), paused_);
+    else if (c == "weather") weather_ = !weather_;
+    RCLCPP_INFO(get_logger(), "ctrl=%s -> mode=%s paused=%d weather=%d",
+                c.c_str(), mode_str(), paused_, weather_);
   }
-  const char *mode_str() { return mode_ == Mode::AUTO ? "AUTO" :
-                                  mode_ == Mode::MANUAL ? "MANUAL" : "EUROC"; }
+  const char *mode_str() { return mode_ == Mode::AUTO ? "AUTO" : mode_ == Mode::MANUAL ? "MANUAL" : "EUROC"; }
 
-  // ---------- scene helpers ----------
+  // ---------- environment ----------
+  void update_environment() {
+    env_t_ += 0.033;
+    if (!weather_) { vis_ = 1.0; wind_ = {0, 0}; altitude_ = 6.0; return; }
+    vis_ = std::clamp(0.60 + 0.37 * std::sin(env_t_ * 0.055 + 1.0), 0.2, 1.0);   // slow fog
+    double sp = wind_base_ + wind_gust_ * (0.5 + 0.5 * std::sin(env_t_ * 0.6));
+    double dir = wind_dir_ + 0.4 * std::sin(env_t_ * 0.23);
+    wind_ = {float(sp * std::cos(dir)), float(sp * std::sin(dir))};
+    altitude_ = 2.0 + 6.0 * vis_;                        // clear -> 8 m, fog -> ~4 m
+  }
+  void apply_altitude() {
+    if (++alt_tick_ < 10) return; alt_tick_ = 0;         // ~3 Hz
+    if (std::fabs(true_z_ - altitude_) > 0.3) teleport(true_, altitude_);
+  }
+  double marker_range() {  // shrinks in fog; low altitude recovers some of it
+    return (2.6 + 3.4 * vis_) + (8.0 - altitude_) * 0.22;
+  }
   double difficulty(Vec2 p) {
     double d = dd(p, hard_c_);
     return d >= scene::HARD_R ? 0.0 : 0.9 * (1.0 - d / scene::HARD_R);
@@ -157,71 +173,73 @@ private:
   }
   const std::vector<Vec2> &active_markers() { return mode_ == Mode::EUROC ? euroc_markers_ : markers_; }
   int marker_in_view() {
-    auto &mk = active_markers();
+    auto &mk = active_markers(); double R = marker_range();
     for (size_t i = 0; i < mk.size(); ++i)
-      if (!used_[i] && dd(true_, mk[i]) <= 4.0) return int(i);
+      if (!used_[i] && dd(true_, mk[i]) <= R) return int(i);
     return -1;
   }
-  // nearest threatening pillar -> (ttc, bearing); false if clear
-  bool obstacle_cue(Vec2 seek_hat, float &ttc, float &bearing) {
-    double best = 1e9; bool found = false;
+
+  // STERN potential-field avoidance: seek velocity + radial repulsion from every
+  // nearby pillar, with the into-obstacle component of seek cancelled. Guarantees a
+  // standoff even when AUTO starts with the drone jammed against a pillar.
+  Vec2 auto_command(Vec2 seek_hat) {
+    Vec2 v{seek_hat.x * controller_.v_max, seek_hat.y * controller_.v_max};
+    bool near = false;
+    const double INFL = 4.0, K = 3.0, MAXR = 4.5;
     for (auto &p : scene::PILLARS) {
-      Vec2 to{p.x - float(true_.x), p.y - float(true_.y)};
-      double dc = std::hypot(to.x, to.y), ds = dc - p.r;
-      if (ds > 6.0) continue;
-      Vec2 toh{float(to.x / std::max(1e-9, dc)), float(to.y / std::max(1e-9, dc))};
-      double along = seek_hat.x * toh.x + seek_hat.y * toh.y;
-      if (along < -0.2) continue;
-      if (ds < best) {
-        best = ds; found = true;
-        double closing = std::max(along, 0.35) * controller_.v_max;
-        ttc = frugalnav::ttc_from_range(float(ds), float(closing));
-        double cross = seek_hat.x * toh.y - seek_hat.y * toh.x;
-        bearing = float(std::atan2(cross, std::max(-1.0, std::min(1.0, along))));
-      }
+      double tx = true_.x - p.x, ty = true_.y - p.y;
+      double dist = std::hypot(tx, ty), ds = dist - p.r;
+      if (ds >= INFL) continue;
+      near = true;
+      double ax = tx / std::max(1e-6, dist), ay = ty / std::max(1e-6, dist);  // away from pillar
+      double mag = std::min(MAXR, K * (1.0 / std::max(ds, 0.2) - 1.0 / INFL));
+      v.x += ax * mag; v.y += ay * mag;
+      double into = -(v.x * ax + v.y * ay);              // component still heading INTO the pillar
+      if (into > 0) { v.x += ax * into * 0.95; v.y += ay * into * 0.95; }
     }
-    return found;
+    last_evading_ = near;
+    double s = std::hypot(v.x, v.y), cap = controller_.v_max * 1.8;
+    if (s > cap) { v.x = v.x / s * cap; v.y = v.y / s * cap; }
+    return v;
   }
 
   // ---------- the loop ----------
   void step() {
     if (!have_truth_) return;
+    update_environment();
     if (paused_) { publish_cmd(0, 0); publish_viz(); return; }
     if (!inited_) { prev_true_ = true_; inited_ = true; }
+    vel_ = {float((true_.x - prev_true_.x) / 0.033), float((true_.y - prev_true_.y) / 0.033)};
+    apply_altitude();
 
     double d = difficulty(true_);
-    Vec2 est = fusion_.xy;
+    double vd = std::min(1.0, d + (1.0 - vis_) * 0.7);   // fog worsens the camera regime
 
-    // target for this mode
+    Vec2 est = fusion_.xy;
     Vec2 tgt = B_;
     if (mode_ == Mode::EUROC && !euroc_.empty()) {
       while (euroc_wp_ + 1 < euroc_.size() && dd(true_, euroc_[euroc_wp_]) < 2.0) ++euroc_wp_;
       tgt = euroc_[std::min(euroc_wp_, euroc_.size() - 1)];
     }
-    Vec2 seek{tgt.x - float((mode_ == Mode::EUROC ? true_.x : est.x)),
+    Vec2 base{tgt.x - float((mode_ == Mode::EUROC ? true_.x : est.x)),
               tgt.y - float((mode_ == Mode::EUROC ? true_.y : est.y))};
-    double sn = std::max(1e-9, (double)std::hypot(seek.x, seek.y));
-    Vec2 seek_hat{float(seek.x / sn), float(seek.y / sn)};
+    double sn = std::max(1e-9, (double)std::hypot(base.x, base.y));
+    Vec2 seek_hat{float(base.x / sn), float(base.y / sn)};
 
-    float ttc = std::numeric_limits<float>::infinity(); float bearing = 0;
-    bool maneuvering = (mode_ != Mode::MANUAL) && obstacle_cue(seek_hat, ttc, bearing);
-
-    // 1) PREDICT the estimator on drift-corrupted true motion (all flying modes)
-    double man = maneuvering ? 3.0 : 1.0;
+    // 1) PREDICT (drift scaled by fog-worsened difficulty)
     Vec2 td{true_.x - prev_true_.x, true_.y - prev_true_.y};
-    fusion_.predict(drift_corrupt(td, (1.0 + 8.0 * d) * man),
-                    float(0.16 * d + (maneuvering ? 0.10 : 0.0)));
+    fusion_.predict(drift_corrupt(td, 1.0 + 8.0 * vd), float(0.16 * vd));
 
-    // 2) SCHEDULE
+    // 2) SCHEDULE (fog worsens the cues -> U rises -> corrects more)
     frugalnav::Cues cues;
     cues.sigma_pos = fusion_.sigma_pos();
-    cues.blur = float(std::max(5.0, 300.0 * (1.0 - 0.85 * d)));
-    cues.feature_loss = float(15.0 * d);
+    cues.blur = float(std::max(5.0, 300.0 * (1.0 - 0.85 * d) * (0.35 + 0.65 * vis_)));
+    cues.feature_loss = float(15.0 * d + (1.0 - vis_) * 12.0);
     cues.imu_bias = float(0.02 + 0.05 * d);
-    cues.active_features = float(150.0 * (1.0 - 0.85 * d)); cues.sigma_head = 0.01f;
+    cues.active_features = float(150.0 * (1.0 - 0.85 * vd)); cues.sigma_head = 0.01f;
     auto r = scheduler_->compute(cues);
 
-    // 3) CORRECT
+    // 3) CORRECT (marker range shrinks in fog)
     if (r.trigger) {
       int mi = marker_in_view();
       if (mi >= 0) {
@@ -233,28 +251,24 @@ private:
     }
     est = fusion_.xy;
 
-    // 4/5) COMMAND per mode
+    // 4/5) COMMAND per mode, then add WIND (a disturbance the loop fights)
     Vec2 cmd{0, 0};
     if (mode_ == Mode::MANUAL) {
-      teleop_age_ += 1; if (teleop_age_ > 12) teleop_ = {0, 0};   // decay if no keypress
-      cmd = teleop_;
-    } else {
-      Vec2 evade = avoider_.update(seek_hat, ttc, bearing);
-      auto vc = controller_.command((mode_ == Mode::EUROC ? true_ : est), evade);
-      // in EUROC we steer by truth toward the moving waypoint (faithful replay)
-      if (mode_ == Mode::EUROC) {
-        Vec2 v{controller_.v_max * seek_hat.x + evade.x, controller_.v_max * seek_hat.y + evade.y};
-        float s = std::hypot(v.x, v.y); if (s > controller_.v_max) v = {v.x/s*controller_.v_max, v.y/s*controller_.v_max};
-        cmd = v;
-      } else cmd = {vc.vx, vc.vy};
-      if (mode_ == Mode::AUTO && controller_.arrived(est)) { arrived_ = true; cmd = {0, 0}; }
-      if (mode_ == Mode::EUROC && euroc_wp_ + 1 >= euroc_.size()) cmd = {0, 0};
+      teleop_age_ += 1; if (teleop_age_ > 12) teleop_ = {0, 0};
+      cmd = teleop_; last_evading_ = false;
+    } else if (mode_ == Mode::EUROC) {
+      cmd = {float(controller_.v_max * seek_hat.x), float(controller_.v_max * seek_hat.y)};
+      last_evading_ = false;
+      if (euroc_wp_ + 1 >= euroc_.size()) cmd = {0, 0};
+    } else {  // AUTO
+      if (controller_.arrived(est)) { arrived_ = true; cmd = {0, 0}; last_evading_ = false; }
+      else cmd = auto_command(seek_hat);
     }
+    cmd.x += wind_.x; cmd.y += wind_.y;
     publish_cmd(cmd.x, cmd.y);
 
     est_path_.push_back(est); true_path_.push_back(true_);
-    last_U_ = r.U; last_evading_ = avoider_.evading;
-    publish_viz(); broadcast_tf(est);
+    last_U_ = r.U; publish_viz(); broadcast_tf(est);
     prev_true_ = true_;
   }
 
@@ -274,7 +288,7 @@ private:
     auto hard = mk(1, visualization_msgs::msg::Marker::CYLINDER, 2*scene::HARD_R, 2*scene::HARD_R, 0.05,
                    0.96, 0.62, 0.04, 0.16);
     hard.pose.position.x = hard_c_.x; hard.pose.position.y = hard_c_.y; a.markers.push_back(hard);
-    int id = 10;
+    int id = 20;
     for (auto &p : scene::PILLARS) {
       auto c = mk(id++, visualization_msgs::msg::Marker::CYLINDER, 2*p.r, 2*p.r, 2.5, 0.4, 0.4, 0.45, 0.85);
       c.pose.position.x = p.x; c.pose.position.y = p.y; c.pose.position.z = 1.25; a.markers.push_back(c);
@@ -295,20 +309,27 @@ private:
     visualization_msgs::msg::MarkerArray a;
     a.markers.push_back(line(200, true_path_, 0.20, 0.83, 0.44));
     a.markers.push_back(line(201, est_path_, 0.22, 0.74, 0.97));
-    if (mode_ == Mode::EUROC) {                          // show the EuRoC route
-      auto rt = line(205, euroc_, 0.55, 0.55, 0.62); rt.color.a = 0.35; a.markers.push_back(rt);
-    }
+    if (mode_ == Mode::EUROC) { auto rt = line(205, euroc_, 0.55, 0.55, 0.62); rt.color.a = 0.35; a.markers.push_back(rt); }
     auto dr = mk(202, visualization_msgs::msg::Marker::SPHERE, 1.3, 1.3, 1.3, 0.22, 0.74, 0.97, 1);
-    dr.pose.position.x = true_.x; dr.pose.position.y = true_.y; dr.pose.position.z = 0.6;
+    dr.pose.position.x = true_.x; dr.pose.position.y = true_.y; dr.pose.position.z = std::max(0.5, altitude_);
     if (last_evading_) { dr.color.r = 0.98; dr.color.g = 0.45; dr.color.b = 0.45; }
     a.markers.push_back(dr);
     auto fx = mk(203, visualization_msgs::msg::Marker::SPHERE_LIST, 0.9, 0.9, 0.9, 0.99, 0.85, 0.14, 1);
     for (auto&c:corr_){geometry_msgs::msg::Point q;q.x=c.x;q.y=c.y;q.z=0.2;fx.points.push_back(q);}
     a.markers.push_back(fx);
-    auto tx = mk(204, visualization_msgs::msg::Marker::TEXT_VIEW_FACING, 1, 1, 2.4, 0.92, 0.95, 0.98, 1);
-    tx.pose.position.x = start_.x; tx.pose.position.y = start_.y + 4; tx.pose.position.z = 3.5;
-    char b[160]; std::snprintf(b, sizeof(b), "MODE: %s%s\nU=%.2f  fixes=%d",
-                               mode_str(), paused_ ? " (PAUSED)" : "", last_U_, fixes_);
+    // wind arrow
+    if (weather_) {
+      auto w = mk(206, visualization_msgs::msg::Marker::ARROW, 0.3, 0.6, 0.6, 0.6, 0.8, 1.0, 0.9);
+      geometry_msgs::msg::Point p0, p1; p0.x = true_.x; p0.y = true_.y; p0.z = 4.0;
+      p1.x = true_.x + wind_.x * 1.5; p1.y = true_.y + wind_.y * 1.5; p1.z = 4.0;
+      w.points.push_back(p0); w.points.push_back(p1); a.markers.push_back(w);
+    }
+    auto tx = mk(204, visualization_msgs::msg::Marker::TEXT_VIEW_FACING, 1, 1, 2.2, 0.92, 0.95, 0.98, 1);
+    tx.pose.position.x = start_.x; tx.pose.position.y = start_.y + 5; tx.pose.position.z = 5;
+    char b[220]; std::snprintf(b, sizeof(b),
+        "MODE: %s%s   fixes=%d  U=%.2f\nWEATHER %s  vis=%.0f%%  alt=%.1fm  wind=%.1f m/s",
+        mode_str(), paused_ ? " (PAUSED)" : "", fixes_, last_U_,
+        weather_ ? "ON" : "off", vis_ * 100.0, altitude_, std::hypot(wind_.x, wind_.y));
     tx.text = b; a.markers.push_back(tx);
     viz_pub_->publish(a);
     std_msgs::msg::Float32 u; u.data = last_U_; u_pub_->publish(u);
@@ -316,7 +337,8 @@ private:
   void broadcast_tf(Vec2 est) {
     geometry_msgs::msg::TransformStamped t; t.header.stamp = now();
     t.header.frame_id = "world"; t.child_frame_id = "base_link";
-    t.transform.translation.x = true_.x; t.transform.translation.y = true_.y; t.transform.rotation.w = 1;
+    t.transform.translation.x = true_.x; t.transform.translation.y = true_.y;
+    t.transform.translation.z = std::max(0.5, altitude_); t.transform.rotation.w = 1;
     tf_->sendTransform(t);
     auto e = t; e.child_frame_id = "frugalnav_estimate";
     e.transform.translation.x = est.x; e.transform.translation.y = est.y; tf_->sendTransform(e);
@@ -324,9 +346,12 @@ private:
 
   // ---------- state ----------
   std::string euroc_csv_;
-  Mode mode_ = Mode::AUTO; bool paused_ = false;
-  Vec2 B_, start_, hard_c_, prev_true_{}, true_{}, teleop_{0, 0};
-  int teleop_age_ = 999;
+  Mode mode_ = Mode::AUTO; bool paused_ = false, weather_ = true;
+  Vec2 B_, start_, hard_c_, prev_true_{}, true_{}, teleop_{0, 0}, wind_{0, 0}, vel_{0, 0};
+  int teleop_age_ = 999, alt_tick_ = 0;
+  float true_z_ = 0.5f;
+  double env_t_ = 0, vis_ = 1.0, altitude_ = 6.0;
+  double wind_base_ = 0.35, wind_gust_ = 0.5, wind_dir_ = 2.4;   // m/s, direction rad
   std::vector<Vec2> markers_, euroc_, euroc_markers_, est_path_, true_path_, corr_;
   std::vector<int> used_; size_t euroc_wp_ = 0;
   double yaw_ = 0, log_scale_ = 0;
@@ -335,7 +360,6 @@ private:
   float last_U_ = 0; int fixes_ = 0;
   std::mt19937 rng_;
   frugalnav::Controller controller_; frugalnav::StateFusion fusion_;
-  frugalnav::ObstacleAvoidance avoider_;
   std::unique_ptr<frugalnav::UncertaintyScheduler> scheduler_;
   rclcpp::Publisher<geometry_msgs::msg::Twist>::SharedPtr cmd_pub_;
   rclcpp::Publisher<std_msgs::msg::Float32>::SharedPtr u_pub_;

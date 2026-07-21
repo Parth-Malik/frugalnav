@@ -34,7 +34,7 @@ BANNER = """
            3 = EUROC   (replay the real EuRoC MH_01 flight)
 
   R = RESET  (teleport drone back to start = "rewind")
-  P = PAUSE / RESUME
+  P = PAUSE / RESUME       G = weather ON/OFF (wind + fog)
   Q or Ctrl-C = quit
 ------------------------------------------------------------
   Tip: press 2 first to take manual control, then fly with WASD.
@@ -90,6 +90,7 @@ def main():
                     node.paused = not node.paused
                     node.say('pause' if node.paused else 'resume')
                     print(' -> PAUSED\r' if node.paused else ' -> RESUMED\r')
+                elif k == 'g': node.say('weather'); print(' -> toggled WEATHER (wind + fog)\r')
             rclpy.spin_once(node, timeout_sec=0.0)
     finally:
         termios.tcsetattr(sys.stdin, termios.TCSADRAIN, settings)
