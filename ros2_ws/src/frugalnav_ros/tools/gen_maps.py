@@ -168,9 +168,62 @@ def build_canopy():
     return len(trees), len(markers)
 
 
+# ------------------------------------------------------------------ REAL map
+def aruco_tile(name, x, y, mid, size=2.6):
+    # a ground tile whose top face shows a REAL ArUco texture (material aruco/<id>),
+    # big enough for the downward camera to resolve at flight altitude.
+    return (f'    <model name="{name}"><static>true</static><pose>{x:.3f} {y:.3f} 0.02 0 0 0</pose>'
+            f'<link name="l"><visual name="v"><geometry><box><size>{size} {size} 0.02</size></box></geometry>'
+            f'<material><script><uri>file://materials/scripts</uri>'
+            f'<uri>file://materials/textures</uri><name>aruco/{mid}</name></script></material>'
+            f'</visual></link></model>')
+
+
+def build_real():
+    # Compact arena for the REAL camera-perception pipeline: fewer, bigger ArUco
+    # tiles (unique ids -> known world poses) that the camera genuinely detects.
+    start, target = (28.0, 10.0), (2.0, 10.0)
+    hard = (15.0, 10.0, 5.0)
+    obstacles = [(21.0, 12.5, 1.4), (15.0, 7.0, 1.6), (9.0, 12.0, 1.4)]
+    # ArUco markers on a grid (ids 0..N-1), avoiding obstacles
+    markers = []  # (id, x, y)
+    mid = 0
+    for mx in range(4, 29, 6):
+        for my in range(3, 18, 5):
+            if mid >= 24:
+                break
+            if all(math.hypot(mx - ox, my - oy) > orr + 2.4 for (ox, oy, orr) in obstacles):
+                markers.append((mid, float(mx), float(my))); mid += 1
+
+    bodies = []
+    for i, (x, y, r) in enumerate(obstacles):
+        bodies.append(cyl(f"tower{i}", x, y, r, OBST_H, (0.33, 0.34, 0.4, 1)))
+    bodies.append(disc("hard_patch", hard[0], hard[1], hard[2], (0.96, 0.62, 0.04, 0.20), 0.03))
+    for (i, x, y) in markers:
+        bodies.append(aruco_tile(f"aruco{i}", x, y, i))
+    bodies.append(cyl("target_B", *target, 0.6, 3.0, (0.98, 0.75, 0.14, 1), z=1.5))
+    bodies.append(cyl("start_pad", *start, 1.0, 0.04, (0.20, 0.83, 0.44, 0.85), z=0.02))
+
+    with open(os.path.join(PKG, "worlds", "real.world"), "w") as f:
+        f.write(world("real", bodies, (0.16, 0.17, 0.2), fog_density=0.015))
+    # scene file: obstacles as pillars + markers as "amarker id x y" (with a real id)
+    lines = [f"target {target[0]:.3f} {target[1]:.3f}",
+             f"start {start[0]:.3f} {start[1]:.3f}",
+             f"hard {hard[0]:.3f} {hard[1]:.3f} {hard[2]:.3f}"]
+    for (x, y, r) in obstacles:
+        lines.append(f"pillar {x:.3f} {y:.3f} {r:.3f}")
+    for (i, x, y) in markers:
+        lines.append(f"amarker {i} {x:.3f} {y:.3f}")
+    with open(os.path.join(PKG, "config", "real_scene.txt"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+    return len(obstacles), len(markers)
+
+
 if __name__ == "__main__":
     os.makedirs(os.path.join(PKG, "config"), exist_ok=True)
     do, dm = build_demo()
     co, cm = build_canopy()
+    ro, rm = build_real()
     print(f"demo:   {do} towers/buildings, {dm} markers")
     print(f"canopy: {co} trees, {cm} markers")
+    print(f"real:   {ro} obstacles, {rm} ArUco markers (ids 0..{rm-1})")

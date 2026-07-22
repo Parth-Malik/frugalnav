@@ -35,10 +35,11 @@ ament_target_dependencies(frugalnav_interactive_node ${DEPS} gazebo_msgs)
 install(TARGETS frugalnav_gazebo_node frugalnav_euroc_node frugalnav_interactive_node
         DESTINATION lib/${PROJECT_NAME})
 
-install(PROGRAMS scripts/frugalnav_teleop.py
+install(PROGRAMS scripts/frugalnav_teleop.py scripts/frugalnav_perception.py
+                scripts/frugalnav_real_node.py scripts/frugalnav_wind.py
         DESTINATION lib/${PROJECT_NAME})
 
-install(DIRECTORY launch worlds models rviz config
+install(DIRECTORY launch worlds models rviz config media
         DESTINATION share/${PROJECT_NAME})
 
 ament_package()

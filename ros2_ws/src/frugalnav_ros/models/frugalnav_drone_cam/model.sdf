@@ -1,0 +1,49 @@
+<?xml version="1.0" ?>
+<!-- Drone with a DOWNWARD camera (for the real perception pipeline). Moved by
+     /frugalnav/cmd_vel (planar_move), ground truth on /frugalnav/truth (p3d), and a
+     downward camera on /frugalnav/down_cam/image_raw so a perception node can run
+     real ArUco detection + blur measurement on the rendered (fog-degraded) image. -->
+<sdf version="1.6">
+  <model name="frugalnav_drone">
+    <link name="base_link">
+      <gravity>0</gravity>
+      <inertial><mass>1.0</mass>
+        <inertia><ixx>0.02</ixx><iyy>0.02</iyy><izz>0.03</izz><ixy>0</ixy><ixz>0</ixz><iyz>0</iyz></inertia></inertial>
+      <collision name="c"><geometry><box><size>0.5 0.5 0.15</size></box></geometry></collision>
+      <visual name="body"><geometry><box><size>0.5 0.5 0.15</size></box></geometry>
+        <material><ambient>0.22 0.74 0.97 1</ambient><diffuse>0.22 0.74 0.97 1</diffuse><emissive>0.05 0.2 0.3 1</emissive></material></visual>
+
+      <!-- downward camera: optical +X points straight down (pitch +90 deg) -->
+      <sensor name="down_cam" type="camera">
+        <pose>0 0 -0.12 0 1.5708 0</pose>
+        <always_on>1</always_on>
+        <update_rate>15</update_rate>
+        <visualize>false</visualize>
+        <camera>
+          <horizontal_fov>1.5</horizontal_fov>
+          <image><width>640</width><height>480</height><format>R8G8B8</format></image>
+          <clip><near>0.1</near><far>80</far></clip>
+        </camera>
+        <plugin name="down_cam_plugin" filename="libgazebo_ros_camera.so">
+          <ros><namespace>/frugalnav</namespace></ros>
+          <camera_name>down_cam</camera_name>
+          <frame_name>down_cam_link</frame_name>
+        </plugin>
+      </sensor>
+    </link>
+
+    <plugin name="planar_move" filename="libgazebo_ros_planar_move.so">
+      <ros><namespace>/frugalnav</namespace>
+        <remapping>cmd_vel:=cmd_vel</remapping><remapping>odom:=odom_planar</remapping></ros>
+      <update_rate>50</update_rate><publish_rate>50</publish_rate>
+      <publish_odom>true</publish_odom><publish_odom_tf>false</publish_odom_tf>
+      <odometry_frame>world</odometry_frame><robot_base_frame>base_link</robot_base_frame>
+      <covariance_x>0.0</covariance_x><covariance_y>0.0</covariance_y><covariance_yaw>0.0</covariance_yaw>
+    </plugin>
+    <plugin name="p3d" filename="libgazebo_ros_p3d.so">
+      <ros><namespace>/frugalnav</namespace><remapping>odom:=truth</remapping></ros>
+      <body_name>base_link</body_name><frame_name>world</frame_name>
+      <update_rate>50</update_rate><gaussian_noise>0.0</gaussian_noise>
+    </plugin>
+  </model>
+</sdf>

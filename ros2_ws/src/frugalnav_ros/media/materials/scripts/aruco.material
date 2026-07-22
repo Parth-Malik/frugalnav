@@ -1,0 +1,336 @@
+material aruco/0
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco0.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/1
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco1.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/2
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco2.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/3
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco3.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/4
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco4.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/5
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco5.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/6
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco6.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/7
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco7.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/8
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco8.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/9
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco9.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/10
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco10.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/11
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco11.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/12
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco12.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/13
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco13.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/14
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco14.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/15
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco15.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/16
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco16.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/17
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco17.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/18
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco18.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/19
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco19.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/20
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco20.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/21
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco21.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/22
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco22.png
+        filtering none
+      }
+    }
+  }
+}
+material aruco/23
+{
+  technique
+  {
+    pass
+    {
+      texture_unit
+      {
+        texture aruco23.png
+        filtering none
+      }
+    }
+  }
+}

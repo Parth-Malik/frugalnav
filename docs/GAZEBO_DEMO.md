@@ -171,6 +171,50 @@ In **MANUAL** mode the estimator keeps running as you fly, so you can *watch* VI
 drift accumulate (green truth vs cyan estimate diverging) and see the scheduler fire
 a correction when you pass a marker — a hands-on feel for what the scheduler does.
 
+## 4. Real vision demo (the "real deal")
+
+Everything above is a sandbox: the node *knows* the marker positions and the
+weather. The **real** demo removes that — the drone flies on an actual **camera**:
+
+```bash
+# Windows: double-click run_real_demo.bat, or:
+source /opt/ros/humble/setup.bash
+source /usr/share/gazebo/setup.sh
+source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+ros2 launch frugalnav_ros real_demo.launch.py gui:=true
+# second terminal: ros2 run frugalnav_ros frugalnav_teleop.py
+```
+
+The pipeline is four separate nodes (all separate from the sandbox demos):
+
+```
+Gazebo camera drone over an ArUco-textured world (fog degrades the image)
+  frugalnav_perception.py  real cv2.aruco detect + solvePnP -> /frugalnav/fix
+                           Laplacian blur + feature count    -> /frugalnav/cues
+  frugalnav_real_node.py   BLIND nav: runs the real FrugalNav core on the MEASURED
+                           cues + fixes; corrects only when U fires (frugal); flies
+                           the drone with /frugalnav/nav_cmd
+  frugalnav_wind.py        adds an unknown gusting wind: nav_cmd + wind -> the drone
+```
+
+**What makes it "real":**
+
+- **Vision, not lookup** — a marker gives a fix *only if the camera actually
+  resolves it* (`FIX ... ERROR ~1 m` from real `solvePnP`); in fog or between
+  markers there is no fix, and the drone dead-reckons until one reappears.
+- **Cues are measured** — blur and feature count come from the pixels, so U rises
+  when the real image degrades.
+- **Wind is estimated, never known** — the nav commands a velocity, measures the
+  velocity it *actually* achieved (VIO), and the difference **is** the wind. It
+  feeds that estimate forward to cancel the wind, with zero access to the true
+  value. The HUD shows the estimate; RViz's wind arrow is the nav's guess.
+
+Verified headless: the drone flies start→target on camera fixes alone, bounding
+drift, while its wind estimate converges to the (hidden) true wind.
+
+> One-time setup for the camera stack: `pip3 install --user "numpy<2"` (ROS Humble's
+> OpenCV/cv_bridge need NumPy 1.x). Already done on this machine.
+
 ## How it maps to the C++ core
 
 Both nodes `#include "frugalnav/uncertainty_scheduler.hpp"` and
