@@ -69,6 +69,10 @@ class Real3Nav(Node):
         self.mode = 'auto'
         self.paused = bool(self.declare_parameter('start_paused', False).value)
         self.home = self.start.copy(); self.spawn_z = 5.0
+        # altitude: cruise high, drop under a haze bank when the image degrades
+        self.cruise_z, self.low_z = 5.0, 2.6
+        self.alt = 5.0
+        self.poor_vis = 0
         self.true_path, self.est_path, self.corr = [], [], []
         self.fixes = 0; self.arrived = False; self.nearest = np.inf
         self.arrival_confirmed = False
@@ -182,10 +186,16 @@ class Real3Nav(Node):
             away = -np.array([np.cos(a_i), np.sin(a_i)])
             if r_i < self.nearest:
                 self.nearest = r_i; nearest_away = away
-            v = v + away * min(6.0, 4.5 * (1.0 / max(r_i - 0.5, 0.2) - 1.0 / rmax))
-            into = -float(v @ away)
-            if into > 0:
-                v = v + away * into                                  # slide, don't stall
+            # Capped well below the seek speed: in clutter several sectors contribute at
+            # once, and if their sum can outrun the seek the drone simply stops dead.
+            v = v + away * min(2.6, 3.0 * (1.0 / max(r_i - 0.5, 0.2) - 1.0 / rmax))
+            # Cancel the component heading into an obstacle so we slide around it -- but
+            # only when genuinely close. Applying it out at the full reaction radius vetoes
+            # approach toward anything in front, which in clutter means never moving.
+            if r_i < 3.0:
+                into = -float(v @ away)
+                if into > 0:
+                    v = v + away * into
         # Tangential term: circle the nearest obstacle toward the goal side. Without it
         # seek and repulsion can balance exactly and the drone sits still.
         if nearest_away is not None and self.nearest < rmax:
@@ -256,6 +266,7 @@ class Real3Nav(Node):
         self.v_cmd = v_ctrl - self.wind_est
         self.pub_cmd(self.v_cmd[0], self.v_cmd[1])
 
+        self.hold_altitude()
         self.true_path.append(self.true.copy()); self.est_path.append(est.copy())
         self.last = dict(U=U, est=est)
         self.publish_viz(U)
@@ -266,10 +277,37 @@ class Real3Nav(Node):
             self.get_logger().info(
                 f'pos=({self.true[0]:.1f},{self.true[1]:.1f}) U={U:.2f} fixes={self.fixes} '
                 f'est_err={terr:.2f}m wind_est=({self.wind_est[0]:.2f},{self.wind_est[1]:.2f}) '
-                f'nearest_obst={nz:.1f}m')
+                f'nearest_obst={nz:.1f}m alt={self.alt:.1f}m feats={self.feats:.0f}')
 
     def pub_cmd(self, x, y):
         t = Twist(); t.linear.x = float(x); t.linear.y = float(y); self.cmd_pub.publish(t)
+
+    def hold_altitude(self):
+        # Visibility is judged from the MEASURED image only (trackable features). Under a
+        # haze bank the ground washes out and the count collapses, so drop below it; once
+        # the view is good again, climb back to cruise. planar_move only drives x/y, so
+        # altitude is applied by setting the model's z.
+        # Judge visibility by image CONTRAST (Laplacian variance), not feature count.
+        # Feature count falls with altitude too -- flying low shrinks the ground patch --
+        # so using it means the drone reads its own descent as fog and never climbs back.
+        # Contrast collapses under haze but stays high in clear air at any height.
+        if self.blur < 120:
+            self.poor_vis = min(self.poor_vis + 1, 40)
+        elif self.blur > 250:
+            self.poor_vis = max(self.poor_vis - 1, 0)
+        want = self.low_z if self.poor_vis > 8 else self.cruise_z
+        if abs(want - self.alt) < 0.05:
+            return
+        self.alt += max(-0.10, min(0.10, want - self.alt))    # ease, don't snap
+        if self.tele_cli.service_is_ready():
+            req = SetEntityState.Request()
+            req.state.name = 'frugalnav_drone'
+            req.state.pose.position.x = float(self.true[0])
+            req.state.pose.position.y = float(self.true[1])
+            req.state.pose.position.z = float(self.alt)
+            req.state.pose.orientation.w = 1.0
+            req.state.reference_frame = 'world'
+            self.tele_cli.call_async(req)
 
     # ---- visualization ----
     def mk(self, i, typ, s, r, g, b, a):
@@ -296,12 +334,11 @@ class Real3Nav(Node):
             b.scale.x, b.scale.y, b.scale.z = sx, sy, h
             b.pose.position.x, b.pose.position.y, b.pose.position.z = ox, oy, h / 2
             a.markers.append(b)
-        if not self.ref_boxes:
-            for j, (ox, oy, r) in enumerate(self.ref_obst):
-                c = self.mk(40 + j, Marker.CYLINDER, 1.0, 0.5, 0.53, 0.58, 0.30)
-                c.scale.x = c.scale.y = 2 * r; c.scale.z = 12.0
-                c.pose.position.x, c.pose.position.y, c.pose.position.z = ox, oy, 6.0
-                a.markers.append(c)
+        for j, (ox, oy, r) in enumerate(self.ref_obst):
+            c = self.mk(300 + j, Marker.CYLINDER, 1.0, 0.5, 0.53, 0.58, 0.30)
+            c.scale.x = c.scale.y = 2 * r; c.scale.z = 12.0
+            c.pose.position.x, c.pose.position.y, c.pose.position.z = ox, oy, 6.0
+            a.markers.append(c)
         tgt = self.mk(2, Marker.CYLINDER, 1.2, 0.98, 0.75, 0.14, 0.95); tgt.scale.z = 3.0
         tgt.pose.position.x, tgt.pose.position.y, tgt.pose.position.z = float(self.B[0]), float(self.B[1]), 1.5
         a.markers.append(tgt); self.scene_pub.publish(a)

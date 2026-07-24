@@ -45,6 +45,17 @@ def flat(name, x, y, sx, sy, rgba, z=0.03):
             f'<material><ambient>{c}</ambient></material></visual></link></model>')
 
 
+def haze(name, x, y, sx, sy, z, alpha=0.88):
+    # A translucent slab with NO collision: a low haze/cloud bank. A camera looking down
+    # through it loses contrast, so markers underneath stop resolving. Flying below the
+    # slab clears the view again -- which is what forces the altitude change.
+    c = f"0.72 0.74 0.78 {alpha}"
+    return (f'    <model name="{name}"><static>true</static><pose>{x:.3f} {y:.3f} {z:.2f} 0 0 0</pose>'
+            f'<link name="l"><visual name="v"><geometry><box><size>{sx} {sy} 0.15</size></box></geometry>'
+            f'<material><ambient>{c}</ambient><diffuse>{c}</diffuse></material>'
+            f'<transparency>{1.0 - alpha:.2f}</transparency></visual></link></model>')
+
+
 def disc(name, x, y, r, rgba, z):
     c = " ".join(map(str, rgba))
     return (f'    <model name="{name}"><static>true</static><pose>{x:.3f} {y:.3f} {z:.2f} 0 0 0</pose>'
@@ -287,10 +298,11 @@ def build_city():
             if (math.hypot(x - start[0], y - start[1]) < 7 or
                     math.hypot(x - target[0], y - target[1]) < 7):
                 continue
-            # Towers on every 2nd column and every 2nd row. That puts a row of them
-            # directly across the start->target avenue, so the drone has to slalom, while
-            # the 16 m column spacing still leaves a gap the reactive avoider can take.
-            # (Packing them tighter traps it in a local minimum -- verified.)
+            # Leave an avenue along the start->target line. The blocks either side give the
+            # city its density; the avenue is where the flying happens and gets filled with
+            # mixed obstacles below.
+            if abs(y - start[1]) < 9:
+                continue
             tall = (i % 2 == 0 and j % 2 == 0)
             sx, sy = rng.uniform(4.4, 5.2), rng.uniform(4.4, 5.2)
             h = rng.uniform(12.0, 28.0) if tall else rng.uniform(2.0, 4.2)
@@ -298,18 +310,54 @@ def build_city():
             if h > FLIGHT_Z:
                 towers.append((x, y, sx, sy, h))
 
-    # ArUco tiles down the streets: a 2.6 m tile needs half its width clear of any facade
+    # Street clutter: masts, poles and pillars of mixed size scattered through the whole
+    # arena, including straight across the flight corridor. Rejection sampling keeps a
+    # guaranteed CLEAR_GAP between every pair of obstacles, so however dense it gets there
+    # is always a passage the reactive avoider can take.
+    CLEAR_GAP = 6.4
+    round_obs = [(x, y, max(sx, sy) * 0.5) for (x, y, sx, sy, h) in towers]
+    clutter = []
+    for _ in range(3000):
+        x = rng.uniform(9, 61)
+        y = start[1] + rng.uniform(-8.5, 8.5)          # inside the avenue
+        if (math.hypot(x - start[0], y - start[1]) < 6 or
+                math.hypot(x - target[0], y - target[1]) < 6):
+            continue
+        kind = rng.random()
+        r = (rng.uniform(0.45, 0.8) if kind < 0.5 else            # slim masts
+             rng.uniform(1.0, 1.6) if kind < 0.82 else            # mid pillars
+             rng.uniform(2.0, 3.0))                               # fat blocks
+        if any(math.hypot(x - ox, y - oy) < r + orr + CLEAR_GAP for (ox, oy, orr) in round_obs):
+            continue
+        if any(abs(x - bx) < sx / 2 + r + 1.5 and abs(y - by) < sy / 2 + r + 1.5
+               for (bx, by, sx, sy, h) in buildings):
+            continue
+        h = rng.uniform(9.0, 19.0)
+        clutter.append((x, y, r, h)); round_obs.append((x, y, r))
+
+    # Two low haze banks across the corridor. Cruising above them washes the ground out;
+    # the drone has to drop below to get its markers back.
+    hazes = [(46.0, 22.0, 15.0, 26.0, 3.6), (20.0, 22.0, 13.0, 26.0, 3.6)]
+
+    # ArUco tiles down the streets: a 2.6 m tile needs half its width clear of anything
     markers, mid = [], 0
-    for mx in range(6, 70, 4):
+    for mx in range(5, 70, 4):
         for my in range(4, 46, 4):
-            if mid >= 48:
+            if mid >= 96:
                 break
-            clear = all(abs(mx - bx) > sx / 2 + 1.45 or abs(my - by) > sy / 2 + 1.45
-                        for (bx, by, sx, sy, h) in buildings)
-            if clear:
-                markers.append((mid, float(mx), float(my))); mid += 1
+            if any(abs(mx - bx) < sx / 2 + 1.45 and abs(my - by) < sy / 2 + 1.45
+                   for (bx, by, sx, sy, h) in buildings):
+                continue
+            if any(math.hypot(mx - ox, my - oy) < orr + 1.6 for (ox, oy, orr) in round_obs):
+                continue
+            markers.append((mid, float(mx), float(my))); mid += 1
 
     bodies = []
+    for i, (x, y, r, h) in enumerate(clutter):
+        g = rng.uniform(0.30, 0.44)
+        bodies.append(cyl(f"mast{i}", x, y, r, h, (g, g + 0.01, g + 0.05, 1)))
+    for i, (hx, hy, hsx, hsy, hz) in enumerate(hazes):
+        bodies.append(haze(f"haze{i}", hx, hy, hsx, hsy, hz))
     for i, (x, y, sx, sy, h) in enumerate(buildings):
         shade = rng.uniform(0.26, 0.46)
         rgba = (shade, shade + 0.02, shade + 0.06, 1)
@@ -321,7 +369,7 @@ def build_city():
     bodies.append(cyl("start_pad", *start, 1.0, 0.04, (0.20, 0.83, 0.44, 0.85), z=0.02))
 
     with open(os.path.join(PKG, "worlds", "city.world"), "w") as f:
-        f.write(world("city", bodies, (0.17, 0.17, 0.19), bg="0.55 0.58 0.63 1", fog_density=0.02))
+        f.write(world("city", bodies, (0.17, 0.17, 0.19), bg="0.58 0.60 0.65 1", fog_density=0.045))
 
     lines = [f"target {target[0]:.3f} {target[1]:.3f}",
              f"start {start[0]:.3f} {start[1]:.3f}",
@@ -332,11 +380,13 @@ def build_city():
         lines.append(f"building {x:.3f} {y:.3f} {sx:.3f} {sy:.3f} {h:.3f}")
     for (x, y, sx, sy, h) in towers:
         lines.append(f"pillar {x:.3f} {y:.3f} {max(sx, sy) * 0.5:.3f}")
+    for (x, y, r, h) in clutter:
+        lines.append(f"pillar {x:.3f} {y:.3f} {r:.3f}")
     for (i, x, y) in markers:
         lines.append(f"amarker {i} {x:.3f} {y:.3f}")
     with open(os.path.join(PKG, "config", "city_scene.txt"), "w") as f:
         f.write("\n".join(lines) + "\n")
-    return len(buildings), len(towers), len(markers)
+    return len(buildings), len(towers) + len(clutter), len(markers)
 
 
 if __name__ == "__main__":

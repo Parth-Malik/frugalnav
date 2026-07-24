@@ -53,7 +53,7 @@ class Perception(Node):
 
         self.K = None; self.dist = None
         self.bridge = CvBridge()
-        d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+        d = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
         if hasattr(cv2.aruco, 'DetectorParameters_create'):
             self._p = cv2.aruco.DetectorParameters_create()
             self._p.cornerRefinementMethod = cv2.aruco.CORNER_REFINE_SUBPIX  # sub-pixel corners

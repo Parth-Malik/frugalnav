@@ -14,7 +14,7 @@ import cv2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PKG = os.path.dirname(HERE)
-N = 48         # DICT_4X4_50 supports ids 0..49; the dense real map uses up to 48 tiles
+N = 100        # DICT_4X4_100 -> ids 0..99, enough tiles for the dense city
 PX = 600
 BORDER = 80   # white quiet zone (ArUco needs it to detect)
 
@@ -30,7 +30,7 @@ def make_marker(dic, i):
 
 
 def main():
-    dic = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_50)
+    dic = cv2.aruco.getPredefinedDictionary(cv2.aruco.DICT_4X4_100)
     tex = os.path.join(PKG, "media", "materials", "textures")
     scr = os.path.join(PKG, "media", "materials", "scripts")
     os.makedirs(tex, exist_ok=True)

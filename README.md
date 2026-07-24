@@ -147,12 +147,23 @@ one.
 | **2 — Real camera** | `real`, `real_dense` | Genuine ArUco perception, wind inferred | RViz + camera feed |
 | **3 — Full realism** | `real`, `real_dense`, `city` | Real optical-flow VIO + real laser obstacles | RViz + both feeds |
 
-The `city` map is a dense urban block: 44 buildings, of which 11 are tall enough to punch
-through the flight altitude and become real obstacles. The rest sit below the drone, so it
-overflies them and the horizontal laser never sees them — they are there for density and
-camera texture. Verified end to end: the drone crosses the full 58 m on optical flow plus
-laser alone, slaloms the towers at a minimum clearance of 4.8 m, and arrives 0.9 m from the
-target with 0.15 m of estimate error.
+The `city` map is the hardest one. City blocks (32 buildings) flank an avenue that is packed
+with **17 mixed obstacles** — slim masts, mid pillars and fat blocks — standing directly in
+the flight path, plus **80 unique ArUco tiles** on the streets. Buildings shorter than the
+flight altitude are overflown and the horizontal laser never sees them; they are there for
+density and camera texture.
+
+It also has **weather**. Gazebo fog is turned up across the whole world, and two translucent
+**haze banks** hang at 3.6 m across the avenue. Cruising above one washes the ground out, so
+the navigator drops below it to get its markers back, then climbs again once the view clears.
+That decision is made on measured image **contrast**, not feature count — feature count also
+falls with altitude, so using it would make the drone read its own descent as fog and never
+climb back.
+
+Verified end to end: crosses the full 58 m on optical flow plus laser alone, threads the
+clutter at **3.2 m** minimum clearance, cycles altitude `5.0 → 3.9 → 5.0 → 3.0 → 5.0` through
+the haze, and arrives **1.1 m** from the target with **0.33 m** of estimate error, spending
+only 7 fixes.
 
 ---
 
