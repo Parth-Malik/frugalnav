@@ -40,8 +40,12 @@ static double d2(Vec2 a, Vec2 b) { return std::hypot(a.x - b.x, a.y - b.y); }
 class FrugalNavEurocNode : public rclcpp::Node {
 public:
   FrugalNavEurocNode() : Node("frugalnav_euroc_node"), rng_(7) {
-    std::string def = "/mnt/c/Users/parth/Downloads/drone/datasets/MH_01_easy/"
-                      "mav0/state_groundtruth_estimate0/data.csv";
+    // EuRoC ground truth: $FRUGALNAV_EUROC, else $FRUGALNAV_ROOT/datasets/..., else relative
+    const char* euroc = std::getenv("FRUGALNAV_EUROC");
+    const char* root = std::getenv("FRUGALNAV_ROOT");
+    const std::string rel = "datasets/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv";
+    std::string def = euroc ? std::string(euroc)
+                            : (root ? std::string(root) + "/" + rel : rel);
     csv_ = declare_parameter<std::string>("gt_csv", def);
     stride_ = declare_parameter<int>("stride", 10);            // 200 Hz -> 20 Hz
     fix_every_m_ = declare_parameter<double>("fix_every_m", 1.5);

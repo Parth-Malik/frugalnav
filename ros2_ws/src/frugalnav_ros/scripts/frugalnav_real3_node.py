@@ -23,7 +23,21 @@ from sensor_msgs.msg import LaserScan
 from visualization_msgs.msg import Marker, MarkerArray
 from gazebo_msgs.srv import SetEntityState
 
-sys.path.insert(0, '/mnt/c/Users/parth/Downloads/drone')
+def _repo_root():
+    """Locate the repo so `core/` is importable, from either a symlink or copy install."""
+    env = os.environ.get('FRUGALNAV_ROOT')
+    if env and os.path.isdir(os.path.join(env, 'core')):
+        return env
+    for start in (os.path.realpath(__file__), os.path.abspath(__file__)):
+        d = os.path.dirname(start)
+        for _ in range(8):
+            if os.path.isdir(os.path.join(d, 'core')):
+                return d
+            d = os.path.dirname(d)
+    raise RuntimeError('cannot find the FrugalNav core; set FRUGALNAV_ROOT to the repo root')
+
+
+sys.path.insert(0, _repo_root())
 from core.uncertainty_scheduler import UncertaintyScheduler, SchedulerConfig
 from core.state_fusion import StateFusion
 from core.controller import TargetCentricController, ControllerConfig

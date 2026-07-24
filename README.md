@@ -163,12 +163,26 @@ pip install -r requirements.txt
 
 Requires **ROS 2 Humble + Gazebo Classic 11 + RViz2**, developed under WSL Ubuntu 22.04.
 
+First point `FRUGALNAV` at wherever you cloned this repo — every command below uses it, so
+add the line to your `~/.bashrc` and you never think about it again:
+
+```bash
+export FRUGALNAV=~/frugalnav          # <- your clone; on WSL a Windows clone looks like
+                                      #    /mnt/c/Users/<you>/frugalnav
+```
+
+Then build:
+
 ```bash
 source /opt/ros/humble/setup.bash
-cd ros2_ws
+cd $FRUGALNAV/ros2_ws
 colcon build --symlink-install
 source install/setup.bash
 ```
+
+Nothing in the repository hardcodes a path: the nodes locate the Python core by walking up
+from their own location (or from `$FRUGALNAV_ROOT` if you set it), the EuRoC readers honour
+`$FRUGALNAV_EUROC`, and the `.bat` launchers derive the path from where they sit.
 
 > **NumPy note:** the ROS OpenCV/cv_bridge stack breaks under NumPy 2. If perception fails
 > to import, run `pip3 install --user "numpy<2"`.
@@ -206,12 +220,14 @@ Run **one** launch at a time; leftovers fight over `/frugalnav/cmd_vel`.
 pkill -9 -f gzserver; pkill -9 -f gzclient; pkill -9 -f rviz2; pkill -9 -f frugalnav; sleep 3
 ```
 
-Start **every** terminal with these three lines:
+Start **every** terminal with these lines (drop the `export` if it is already in your
+`~/.bashrc`):
 
 ```bash
+export FRUGALNAV=~/frugalnav
 source /opt/ros/humble/setup.bash
 source /usr/share/gazebo/setup.sh
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ```
 
 ### 5.3 Demo 1 — Sandbox

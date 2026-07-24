@@ -17,12 +17,14 @@ Everything runs in **WSL Ubuntu 22.04** with ROS 2 Humble + Gazebo Classic 11.
 
 ## One-time setup
 
-ROS 2 Humble + Gazebo + RViz are already installed. Build the workspace:
+ROS 2 Humble + Gazebo + RViz are already installed. Point `FRUGALNAV` at your clone
+(add it to `~/.bashrc` so it persists), then build the workspace:
 
 ```bash
 # in WSL Ubuntu 22.04
+export FRUGALNAV=~/frugalnav        # e.g. /mnt/c/Users/<you>/frugalnav
 source /opt/ros/humble/setup.bash
-cd /mnt/c/Users/parth/Downloads/drone/ros2_ws
+cd $FRUGALNAV/ros2_ws
 colcon build --symlink-install
 source install/setup.bash
 ```
@@ -35,7 +37,7 @@ Add sourcing to each new shell (or your `~/.bashrc`):
 
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ```
 
 ---
@@ -180,7 +182,7 @@ weather. The **real** demo removes that — the drone flies on an actual **camer
 # Windows: double-click run_real_demo.bat, or:
 source /opt/ros/humble/setup.bash
 source /usr/share/gazebo/setup.sh
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 launch frugalnav_ros real_demo.launch.py gui:=true
 # second terminal: ros2 run frugalnav_ros frugalnav_teleop.py
 ```

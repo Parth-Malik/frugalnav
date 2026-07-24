@@ -8,7 +8,11 @@ REM
 REM  1 AUTO  2 MANUAL(WASD)   R reset   P pause
 REM  ] [ wind stronger/weaker   T gust   G weather on/off
 REM ============================================================
-set ROSENV=source /opt/ros/humble/setup.bash ^&^& source /usr/share/gazebo/setup.sh ^&^& source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+REM  Resolve this repo's WSL path from the location of this .bat (no hardcoded paths)
+set "HERE=%~dp0"
+set "HERE=%HERE:~0,-1%"
+for /f "usebackq delims=" %%p in (`wsl -d Ubuntu-22.04 wslpath -a "%HERE%"`) do set "REPO=%%p"
+set ROSENV=source /opt/ros/humble/setup.bash ^&^& source /usr/share/gazebo/setup.sh ^&^& source %REPO%/ros2_ws/install/setup.bash
 echo.
 echo  Starting FrugalNav REAL vision demo (Gazebo + RViz) in a new window...
 start "FrugalNav Real" wsl -d Ubuntu-22.04 -e bash -c "%ROSENV% && ros2 launch frugalnav_ros real_demo.launch.py gui:=true"

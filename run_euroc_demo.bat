@@ -9,7 +9,11 @@ REM ============================================================
 echo.
 echo  Launching FrugalNav EuRoC RViz demo in WSL...
 echo.
-wsl -d Ubuntu-22.04 -e bash -c "source /opt/ros/humble/setup.bash && source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash && ros2 launch frugalnav_ros euroc_demo.launch.py"
+REM  Resolve this repo's WSL path from the location of this .bat (no hardcoded paths)
+set "HERE=%~dp0"
+set "HERE=%HERE:~0,-1%"
+for /f "usebackq delims=" %%p in (`wsl -d Ubuntu-22.04 wslpath -a "%HERE%"`) do set "REPO=%%p"
+wsl -d Ubuntu-22.04 -e bash -c "source /opt/ros/humble/setup.bash && source %REPO%/ros2_ws/install/setup.bash && ros2 launch frugalnav_ros euroc_demo.launch.py"
 echo.
 echo  Demo stopped.
 pause

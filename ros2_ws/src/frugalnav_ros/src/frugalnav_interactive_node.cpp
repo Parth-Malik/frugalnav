@@ -44,9 +44,14 @@ enum class Mode { AUTO, MANUAL, EUROC };
 class FrugalNavInteractive : public rclcpp::Node {
 public:
   FrugalNavInteractive() : Node("frugalnav_interactive_node"), rng_(1) {
+    // EuRoC ground truth: $FRUGALNAV_EUROC, else $FRUGALNAV_ROOT/datasets/..., else relative
+    const char* euroc_env = std::getenv("FRUGALNAV_EUROC");
+    const char* root_env = std::getenv("FRUGALNAV_ROOT");
+    const std::string euroc_rel =
+        "datasets/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv";
     euroc_csv_ = declare_parameter<std::string>("gt_csv",
-        "/mnt/c/Users/parth/Downloads/drone/datasets/MH_01_easy/"
-        "mav0/state_groundtruth_estimate0/data.csv");
+        euroc_env ? std::string(euroc_env)
+                  : (root_env ? std::string(root_env) + "/" + euroc_rel : euroc_rel));
     std::string scene = declare_parameter<std::string>("scene_file", "");
     if (!scene.empty()) load_scene(scene);
     if (pillars_.empty() && markers_.empty())

@@ -14,8 +14,26 @@ from launch.conditions import IfCondition
 from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
-DEFAULT_CSV = ('/mnt/c/Users/parth/Downloads/drone/datasets/MH_01_easy/'
-               'mav0/state_groundtruth_estimate0/data.csv')
+_EUROC_REL = 'datasets/MH_01_easy/mav0/state_groundtruth_estimate0/data.csv'
+
+
+def _default_csv():
+    """EuRoC ground truth: $FRUGALNAV_EUROC, else <repo>/datasets/... if we can find it."""
+    env = os.environ.get('FRUGALNAV_EUROC')
+    if env:
+        return env
+    root = os.environ.get('FRUGALNAV_ROOT')
+    if not root:
+        d = os.path.dirname(os.path.realpath(__file__))
+        for _ in range(8):
+            if os.path.isdir(os.path.join(d, 'core')):
+                root = d
+                break
+            d = os.path.dirname(d)
+    return os.path.join(root, _EUROC_REL) if root else _EUROC_REL
+
+
+DEFAULT_CSV = _default_csv()
 
 
 def generate_launch_description():

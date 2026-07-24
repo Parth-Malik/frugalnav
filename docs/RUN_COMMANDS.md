@@ -24,13 +24,20 @@ Two rules save you every time:
 pkill -9 -f gzserver; pkill -9 -f gzclient; pkill -9 -f rviz2; pkill -9 -f frugalnav; sleep 3
 ```
 
-Every launch/teleop terminal begins with the **same three source lines** — just paste
+**Set `FRUGALNAV` once** to wherever you cloned the repo. Put it in your `~/.bashrc` and
+every command below just works:
+
+```bash
+export FRUGALNAV=~/frugalnav        # e.g. /mnt/c/Users/<you>/frugalnav on WSL
+```
+
+Every launch/teleop terminal then begins with the **same three source lines** — just paste
 them at the top of each terminal:
 
 ```bash
 source /opt/ros/humble/setup.bash
 source /usr/share/gazebo/setup.sh
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ```
 
 ---
@@ -41,14 +48,14 @@ source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
 ```bash
 source /opt/ros/humble/setup.bash
 source /usr/share/gazebo/setup.sh
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 launch frugalnav_ros interactive_demo.launch.py map:=demo
 ```
 
 **Terminal 2 — fly it / weather (keep this window focused when pressing keys):**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run frugalnav_ros frugalnav_teleop.py
 ```
 
@@ -64,14 +71,14 @@ Exactly the same as the demo map — only the last line changes.
 ```bash
 source /opt/ros/humble/setup.bash
 source /usr/share/gazebo/setup.sh
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 launch frugalnav_ros interactive_demo.launch.py map:=canopy
 ```
 
 **Terminal 2 — fly it / weather:**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run frugalnav_ros frugalnav_teleop.py
 ```
 
@@ -99,7 +106,7 @@ running, open one more terminal:
 **Terminal 3 — live camera view with ArUco detection drawn on it:**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run rqt_image_view rqt_image_view /frugalnav/down_cam/annotated
 ```
 
@@ -122,7 +129,7 @@ to press PLAY, so you can place the drone and set weather first):
 ```bash
 source /opt/ros/humble/setup.bash
 source /usr/share/gazebo/setup.sh
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 launch frugalnav_ros real_demo.launch.py map:=real start_paused:=true gui:=true
 ```
 - Drop `start_paused:=true` if you just want it to fly itself immediately.
@@ -131,14 +138,14 @@ ros2 launch frugalnav_ros real_demo.launch.py map:=real start_paused:=true gui:=
 **Terminal 2 — MISSION CONTROL (play / pause / reset / place the drone / weather):**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run frugalnav_ros frugalnav_mission_control.py
 ```
 
 **Terminal 3 — the drone feed (see Section 3):**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run rqt_image_view rqt_image_view /frugalnav/down_cam/annotated
 ```
 
@@ -176,7 +183,7 @@ Same real pipeline as Section 4, but a **44 m corridor packed with 14 tall obsta
 ```bash
 source /opt/ros/humble/setup.bash
 source /usr/share/gazebo/setup.sh
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 launch frugalnav_ros real_demo.launch.py map:=real_dense start_paused:=true gui:=true
 ```
 (drop `start_paused:=true` to fly immediately; drop `gui:=true` to watch in RViz only.)
@@ -184,14 +191,14 @@ ros2 launch frugalnav_ros real_demo.launch.py map:=real_dense start_paused:=true
 **Terminal 2 — mission control (same keys as Section 4):**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run frugalnav_ros frugalnav_mission_control.py
 ```
 
 **Terminal 3 — drone feed:**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run rqt_image_view rqt_image_view /frugalnav/down_cam/annotated
 ```
 
@@ -214,7 +221,7 @@ wind inferred. Adds a **forward camera** you can watch.
 ```bash
 source /opt/ros/humble/setup.bash
 source /usr/share/gazebo/setup.sh
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 launch frugalnav_ros real3_demo.launch.py map:=real start_paused:=true gui:=true
 ```
 (use `map:=real_dense` for the cluttered arena; drop `start_paused:=true` to fly immediately.)
@@ -222,21 +229,21 @@ ros2 launch frugalnav_ros real3_demo.launch.py map:=real start_paused:=true gui:
 **Terminal 2 — mission control (same keys as Section 4):**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run frugalnav_ros frugalnav_mission_control.py
 ```
 
 **Terminal 3 — downward feed (AVL + VIO):**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run rqt_image_view rqt_image_view /frugalnav/down_cam/annotated
 ```
 
 **Terminal 4 — FRONT camera (obstacle view):**
 ```bash
 source /opt/ros/humble/setup.bash
-source /mnt/c/Users/parth/Downloads/drone/ros2_ws/install/setup.bash
+source $FRUGALNAV/ros2_ws/install/setup.bash
 ros2 run rqt_image_view rqt_image_view /frugalnav/front_cam/annotated
 ```
 
@@ -259,7 +266,7 @@ A full illustrated write-up is in **`docs/FrugalNav_Guide.pdf`**.
 now published latched (transient-local). If you ever see it again, make sure you rebuilt:
 ```bash
 source /opt/ros/humble/setup.bash
-cd /mnt/c/Users/parth/Downloads/drone/ros2_ws && colcon build --symlink-install --packages-select frugalnav_ros
+cd $FRUGALNAV/ros2_ws && colcon build --symlink-install --packages-select frugalnav_ros
 ```
 
 **The drone jerks / fights itself.** Two launches are running. Ctrl+C both, run the
