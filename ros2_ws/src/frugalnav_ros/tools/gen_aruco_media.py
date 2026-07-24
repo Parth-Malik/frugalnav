@@ -14,7 +14,7 @@ import cv2
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PKG = os.path.dirname(HERE)
-N = 24
+N = 48         # DICT_4X4_50 supports ids 0..49; the dense real map uses up to 48 tiles
 PX = 600
 BORDER = 80   # white quiet zone (ArUco needs it to detect)
 

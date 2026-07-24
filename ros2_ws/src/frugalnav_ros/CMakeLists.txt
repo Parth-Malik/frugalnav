@@ -37,6 +37,8 @@ install(TARGETS frugalnav_gazebo_node frugalnav_euroc_node frugalnav_interactive
 
 install(PROGRAMS scripts/frugalnav_teleop.py scripts/frugalnav_perception.py
                 scripts/frugalnav_real_node.py scripts/frugalnav_wind.py
+                scripts/frugalnav_mission_control.py scripts/frugalnav_vio.py
+                scripts/frugalnav_real3_node.py scripts/frugalnav_front_view.py
         DESTINATION lib/${PROJECT_NAME})
 
 install(DIRECTORY launch worlds models rviz config media

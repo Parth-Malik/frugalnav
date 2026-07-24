@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 """
-FrugalNav external WIND / environment node -- the disturbance the navigator cannot
-see. It sits between the nav and the drone:
+External wind, sitting between the navigator and the drone:
 
-    /frugalnav/nav_cmd  --(+ wind)-->  /frugalnav/cmd_vel  --> the drone
+    /frugalnav/nav_cmd  --(+ wind)-->  /frugalnav/cmd_vel  --> drone
 
-The nav publishes what it WANTS; this node adds a real gusting wind and forwards the
-sum to the drone. The nav never subscribes to the wind here -- it can only infer it
-by comparing the velocity it commanded to the velocity it actually achieved. Wind is
-user-adjustable from the teleop (] / [ stronger/weaker, T gust on/off, G on/off);
-the true wind is published on /frugalnav/wind_true for the RViz comparison only.
+The navigator publishes what it wants; this adds a gusting wind and forwards the sum.
+Nothing here is fed back to the navigator, so it can only infer the wind from the
+velocity it actually achieved. /frugalnav/wind_true is published for RViz only.
+
+Adjustable from the control panel: ] / [ strength, T gust, G on/off.
 """
 import math
 import numpy as np
@@ -23,6 +22,7 @@ class Wind(Node):
     def __init__(self):
         super().__init__('frugalnav_wind')
         self.speed = float(self.declare_parameter('wind', 0.8).value)
+        self.paused = bool(self.declare_parameter('start_paused', False).value)
         self.direction = 2.4
         self.gust = True
         self.on = True
@@ -45,8 +45,15 @@ class Wind(Node):
         elif d == 'wind_down': self.speed = max(0.0, self.speed - 0.4)
         elif d == 'rain' or d == 'gust': self.gust = not self.gust
         elif d == 'weather': self.on = not self.on
+        elif d == 'pause': self.paused = True
+        elif d in ('play', 'resume'): self.paused = False
 
     def tick(self):
+        # While paused, send zero and no wind, otherwise the drone drifts on the spot
+        if self.paused:
+            self.cmd_pub.publish(Twist())
+            self.wind_pub.publish(Vector3())
+            return
         self.t += 0.05
         if self.on:
             g = (0.7 + 0.3 * math.sin(self.t * 0.7)) if self.gust else 1.0

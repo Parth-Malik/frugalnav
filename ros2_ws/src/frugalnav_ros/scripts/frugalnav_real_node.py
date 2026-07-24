@@ -1,21 +1,17 @@
 #!/usr/bin/env python3
 """
-FrugalNav BLIND navigator -- the real deal. It flies the drone using ONLY measured
-signals and never sees the camera, the wind, or the weather:
+Demo 2 navigator. Flies on camera-derived signals:
 
-  inputs (measured):
-    /frugalnav/truth  -> corrupted to a VIO velocity (relative motion, drifts)
-    /frugalnav/fix    -> absolute position from the camera's real ArUco detection
-    /frugalnav/cues   -> [blur, features, n_markers] measured from the image
-  it runs the real FrugalNav core (uncertainty scheduler + state fusion + target-
-  centric controller + obstacle avoidance) and outputs /frugalnav/nav_cmd.
+    /frugalnav/fix    absolute position from real ArUco detection
+    /frugalnav/cues   [blur, features, n_markers] measured from the image
+    /frugalnav/truth  corrupted into a drifting VIO velocity (see step())
 
-WIND is estimated, not known: the drone commands a velocity, measures the velocity
-it ACTUALLY achieved (VIO), and the difference is the wind. It feeds that estimate
-forward to cancel the wind -- with no access to the true wind value.
+Wind is not given: the drone compares the velocity it commanded to the velocity it
+achieved and feeds the difference forward. Corrections are frugal -- even with a
+marker in view, a fix is only spent when the scheduler's U says so.
 
-FRUGAL scheduling is preserved: even when a marker is in view, the nav spends a
-correction only when the uncertainty metric U says it needs one.
+Demo 3 (frugalnav_real3_node.py) replaces the simulated VIO and the obstacle map
+with a real optical-flow front-end and a laser.
 """
 import os
 import sys
@@ -26,6 +22,7 @@ from geometry_msgs.msg import Twist, PointStamped
 from std_msgs.msg import Float32MultiArray, String
 from nav_msgs.msg import Odometry
 from visualization_msgs.msg import Marker, MarkerArray
+from gazebo_msgs.srv import SetEntityState                     # teleport the drone (reset / reposition)
 
 sys.path.insert(0, '/mnt/c/Users/parth/Downloads/drone')      # the FrugalNav Python core
 from core.uncertainty_scheduler import UncertaintyScheduler, SchedulerConfig
@@ -56,18 +53,29 @@ class RealNav(Node):
         self.fix = None; self.fix_t = -1.0; self.fix_used_t = -1.0
         self.blur = 300.0; self.feats = 60.0; self.prev_feats = 60.0
         self.wind_est = np.zeros(2); self.v_cmd = np.zeros(2)
-        self.mode = 'auto'; self.paused = False
+        self.teleop_vel = np.zeros(2)                # manual WASD velocity (world XY)
+        self.mode = 'auto'
+        self.paused = bool(self.declare_parameter('start_paused', False).value)
+        self.home = self.start.copy()                # where RESET returns / repositioning base
+        self.spawn_z = 5.0
         self.true_path, self.est_path, self.corr = [], [], []
         self.fixes = 0; self.arrived = False
+        # service to teleport the Gazebo drone (real RESET + reposition-before-start)
+        self.tele_cli = self.create_client(SetEntityState, '/gazebo/set_entity_state')
 
         self.cmd_pub = self.create_publisher(Twist, '/frugalnav/nav_cmd', 10)
         self.viz_pub = self.create_publisher(MarkerArray, '/frugalnav/viz', 10)
-        self.scene_pub = self.create_publisher(MarkerArray, '/frugalnav/scene',
-                                               rclpy.qos.QoSProfile(depth=1))
+        # LATCHED (transient-local): the scene is static and published once, so a
+        # late-joining RViz still receives it; also matches RViz's transient-local
+        # request (a volatile publisher here -> "incompatible QoS" -> map never draws).
+        latched = rclpy.qos.QoSProfile(
+            depth=1, durability=rclpy.qos.QoSDurabilityPolicy.TRANSIENT_LOCAL)
+        self.scene_pub = self.create_publisher(MarkerArray, '/frugalnav/scene', latched)
         self.create_subscription(Odometry, '/frugalnav/truth', self.on_truth, 20)
         self.create_subscription(PointStamped, '/frugalnav/fix', self.on_fix, 10)
         self.create_subscription(Float32MultiArray, '/frugalnav/cues', self.on_cues, 10)
         self.create_subscription(String, '/frugalnav/ctrl', self.on_ctrl, 10)
+        self.create_subscription(Twist, '/frugalnav/teleop', self.on_teleop, 10)
         self.publish_scene()
         self.timer = self.create_timer(0.05, self.step)     # 20 Hz
         self.get_logger().info(f'blind nav up: target {self.B}, {len(self.obst)} obstacles')
@@ -91,10 +99,43 @@ class RealNav(Node):
     def on_ctrl(self, m):
         c = m.data
         if c in ('auto', 'manual'): self.mode = c; self.arrived = False
-        elif c == 'reset': self.fusion.state.xy = self.start.copy(); self.true_path.clear(); self.est_path.clear(); self.corr.clear(); self.fixes = 0; self.arrived = False
         elif c == 'pause': self.paused = True
-        elif c == 'resume': self.paused = False
+        elif c in ('play', 'resume'): self.paused = False
+        elif c == 'reset': self.reset_home()
+        elif c == 'move_north': self.reposition([0.0, 1.0])
+        elif c == 'move_south': self.reposition([0.0, -1.0])
+        elif c == 'move_east': self.reposition([1.0, 0.0])
+        elif c == 'move_west': self.reposition([-1.0, 0.0])
+    def on_teleop(self, m): self.teleop_vel = np.array([m.linear.x, m.linear.y])
     def now(self): return self.get_clock().now().nanoseconds * 1e-9
+
+    def teleport(self, xy):
+        # move the real Gazebo drone to xy (keeps its flight altitude)
+        if not self.tele_cli.wait_for_service(timeout_sec=0.3):
+            self.get_logger().warn('set_entity_state not ready; teleport skipped'); return
+        req = SetEntityState.Request()
+        req.state.name = 'frugalnav_drone'
+        req.state.pose.position.x = float(xy[0])
+        req.state.pose.position.y = float(xy[1])
+        req.state.pose.position.z = float(self.spawn_z)
+        req.state.pose.orientation.w = 1.0
+        req.state.reference_frame = 'world'
+        self.tele_cli.call_async(req)
+
+    def reset_home(self):
+        # RESET: teleport the drone home, resync the estimate, clear trails, and HOLD
+        self.teleport(self.home)
+        self.fusion.state.xy = self.home.copy(); self.prev_true = None
+        self.true_path.clear(); self.est_path.clear(); self.corr.clear()
+        self.fixes = 0; self.arrived = False; self.paused = True
+        self.get_logger().info(f'RESET -> home {self.home}, holding')
+
+    def reposition(self, delta):
+        # move the start/home position (and the drone) before launching the mission
+        self.home = self.home + np.array(delta, float)
+        self.teleport(self.home)
+        self.fusion.state.xy = self.home.copy(); self.prev_true = None
+        self.get_logger().info(f'home -> {self.home}')
 
     def step(self):
         if self.true is None or self.paused:
@@ -134,7 +175,10 @@ class RealNav(Node):
         est = self.fusion.state.xy
 
         # --- control (target-centric + obstacle avoidance), then WIND FEEDFORWARD ---
-        if self.mode == 'auto' and self.ctrl.arrived(est):
+        if self.mode == 'manual':
+            # fly by WASD; keep obstacle repulsion so manual flight can't crash a pillar
+            v_ctrl = self.add_repulsion(est, self.teleop_vel.copy())
+        elif self.mode == 'auto' and self.ctrl.arrived(est):
             self.arrived = True; v_ctrl = np.zeros(2)
         else:
             seek = self.B - est; n = np.linalg.norm(seek) or 1.0; seek_hat = seek / n
@@ -171,7 +215,11 @@ class RealNav(Node):
         return ttc, bearing, best < 1e9
 
     def apf(self, pos, seek_hat):
-        v = seek_hat * self.ctrl.cfg.v_max
+        return self.add_repulsion(pos, seek_hat * self.ctrl.cfg.v_max)
+
+    def add_repulsion(self, pos, v):
+        # push the velocity away from every nearby obstacle (potential field). Shared
+        # by AUTO seeking and MANUAL flying so neither can drive into a pillar.
         for (ox, oy, r) in self.obst:
             to = pos - np.array([ox, oy]); d = np.linalg.norm(to); ds = d - r
             if ds >= 3.6: continue

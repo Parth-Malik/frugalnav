@@ -1,16 +1,13 @@
-"""Demo 2: drone with a downward camera over an ArUco-textured world.
+"""Demo 3: drone with a downward camera, a forward camera and a 360 deg laser.
 
     gazebo -> perception (ArUco fixes + image cues)
-           -> blind nav  (scheduler + fusion + control, wind inferred)
+           -> vio        (velocity from optical flow)
+           -> real3 nav  (obstacles from the laser, wind inferred)
            -> wind       (adds the disturbance) -> drone
 
-    ros2 launch frugalnav_ros real_demo.launch.py
-    ros2 launch frugalnav_ros real_demo.launch.py map:=real_dense gui:=true
-    ros2 launch frugalnav_ros real_demo.launch.py start_paused:=true
-
-Control panel and camera view run in their own terminals:
-    ros2 run frugalnav_ros frugalnav_mission_control.py
-    ros2 run rqt_image_view rqt_image_view /frugalnav/down_cam/annotated
+    ros2 launch frugalnav_ros real3_demo.launch.py
+    ros2 launch frugalnav_ros real3_demo.launch.py map:=real_dense gui:=true
+    ros2 launch frugalnav_ros real3_demo.launch.py start_paused:=true
 """
 import os
 from ament_index_python.packages import get_package_share_directory
@@ -23,7 +20,6 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
-# drone spawn (start pad) per real map
 START = {'real': ('28', '10', '5'), 'real_dense': ('46', '15', '5')}
 
 
@@ -35,9 +31,10 @@ def _setup(context, *args, **kwargs):
         mp = 'real'
     world = os.path.join(pkg, 'worlds', f'{mp}.world')
     scene = os.path.join(pkg, 'config', f'{mp}_scene.txt')
-    model = os.path.join(pkg, 'models', 'frugalnav_drone_cam', 'model.sdf')
+    model = os.path.join(pkg, 'models', 'frugalnav_drone_real3', 'model.sdf')
     rviz_cfg = os.path.join(pkg, 'rviz', 'frugalnav.rviz')
     sx, sy, sz = START[mp]
+    sp = ParameterValue(LaunchConfiguration('start_paused'), value_type=bool)
 
     gazebo = IncludeLaunchDescription(
         PythonLaunchDescriptionSource(os.path.join(gazebo_ros, 'launch', 'gazebo.launch.py')),
@@ -49,21 +46,22 @@ def _setup(context, *args, **kwargs):
     perception = Node(package='frugalnav_ros', executable='frugalnav_perception.py',
                       name='frugalnav_perception', output='screen',
                       parameters=[{'scene_file': scene}])
-    sp = ParameterValue(LaunchConfiguration('start_paused'), value_type=bool)
-    nav = Node(package='frugalnav_ros', executable='frugalnav_real_node.py',
-               name='frugalnav_real_node', output='screen',
+    vio = Node(package='frugalnav_ros', executable='frugalnav_vio.py',
+               name='frugalnav_vio', output='screen')
+    nav = Node(package='frugalnav_ros', executable='frugalnav_real3_node.py',
+               name='frugalnav_real3_node', output='screen',
                parameters=[{'scene_file': scene, 'start_paused': sp}])
+    front = Node(package='frugalnav_ros', executable='frugalnav_front_view.py',
+                 name='frugalnav_front_view', output='screen')
     wind = Node(package='frugalnav_ros', executable='frugalnav_wind.py',
-                name='frugalnav_wind', output='screen',
-                parameters=[{'start_paused': sp}])
+                name='frugalnav_wind', output='screen', parameters=[{'start_paused': sp}])
     rviz = Node(package='rviz2', executable='rviz2', name='rviz2',
                 arguments=['-d', rviz_cfg], output='screen',
                 condition=IfCondition(LaunchConfiguration('rviz')))
 
     return [gazebo,
             TimerAction(period=4.0, actions=[spawn]),
-            # give Gazebo + the camera a moment before the perception/nav/wind nodes
-            TimerAction(period=8.0, actions=[perception, nav, wind]),
+            TimerAction(period=8.0, actions=[perception, vio, nav, front, wind]),
             rviz]
 
 

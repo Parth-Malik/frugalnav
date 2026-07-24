@@ -1,18 +1,13 @@
 #!/usr/bin/env python3
 """
-FrugalNav REAL perception node. Turns the drone's downward-camera image into the
-signals the navigator needs -- everything MEASURED from pixels, nothing injected:
+Turns the downward camera image into the signals the navigator needs.
 
-  * detects ArUco markers (cv2.aruco), estimates each one's camera-frame pose
-    (solvePnP), and recovers the drone's ABSOLUTE world position from the known
-    marker map  ->  /frugalnav/fix   (geometry_msgs/PointStamped)
-  * Laplacian-variance sharpness  ->  the blur cue
-  * good-feature count            ->  the feature cue
-        both  ->  /frugalnav/cues  (std_msgs/Float32MultiArray: [blur, features, n_markers])
+    /frugalnav/fix                 absolute world position, from ArUco detection +
+                                   solvePnP against the known marker map
+    /frugalnav/cues                [blur, feature count, n_markers] for the scheduler
+    /frugalnav/down_cam/annotated  same image with detections drawn, for viewing
 
-If /frugalnav/truth is available it also logs the fix error, so the geometry can be
-checked against ground truth. The navigator consumes /frugalnav/fix + /frugalnav/cues
-and never sees the camera, the wind, or the weather -- only these measurements.
+Fix error is logged against /frugalnav/truth when available, as a sanity check.
 """
 import os
 import numpy as np
@@ -75,6 +70,7 @@ class Perception(Node):
         self.truth = None
         self.fix_pub = self.create_publisher(PointStamped, '/frugalnav/fix', 10)
         self.cue_pub = self.create_publisher(Float32MultiArray, '/frugalnav/cues', 10)
+        self.ann_pub = self.create_publisher(Image, '/frugalnav/down_cam/annotated', 5)
         self.create_subscription(CameraInfo, '/frugalnav/down_cam/camera_info', self.on_info, 5)
         self.create_subscription(Image, '/frugalnav/down_cam/image_raw', self.on_img, 5)
         self.create_subscription(Odometry, '/frugalnav/truth', self.on_truth, 5)
@@ -146,6 +142,21 @@ class Perception(Node):
         cue = Float32MultiArray()
         cue.data = [blur, float(nfeat), float(len(fixes))]
         self.cue_pub.publish(cue)
+
+        # annotated feed for the operator view
+        ann = img.copy()
+        if ids is not None and len(ids):
+            cv2.aruco.drawDetectedMarkers(ann, corners, ids)
+        cv2.putText(ann, f'markers={len(fixes)}  blur={blur:.0f}  feats={nfeat}',
+                    (10, 26), cv2.FONT_HERSHEY_SIMPLEX, 0.6, (60, 240, 60), 2)
+        if fixes:
+            fxy = np.mean(fixes, axis=0)
+            hud = f'FIX ({fxy[0]:.1f}, {fxy[1]:.1f}) m'
+            if self.truth is not None:
+                hud += f'  err={np.hypot(fxy[0]-self.truth[0], fxy[1]-self.truth[1]):.2f} m'
+            cv2.putText(ann, hud, (10, img.shape[0] - 16),
+                        cv2.FONT_HERSHEY_SIMPLEX, 0.6, (40, 210, 255), 2)
+        self.ann_pub.publish(self.bridge.cv2_to_imgmsg(ann, 'bgr8'))
 
         self._n += 1
         if fixes:
