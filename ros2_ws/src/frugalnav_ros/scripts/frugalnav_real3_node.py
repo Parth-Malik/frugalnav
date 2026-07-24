@@ -49,7 +49,9 @@ class Real3Nav(Node):
         super().__init__('frugalnav_real3_node')
         scene = self.declare_parameter('scene_file', '').value
         self.B, self.start = np.array([0., 0.]), np.array([0., 0.])
-        self.ref_obst = []            # obstacle map: RViz REFERENCE ONLY, never used to navigate
+        # obstacle map: RViz REFERENCE ONLY, never used to navigate
+        self.ref_obst = []            # (x, y, r)            round pillars
+        self.ref_boxes = []           # (x, y, sx, sy, h)    city buildings
         self.load_scene(scene)
 
         self.ctrl = TargetCentricController(self.B, ControllerConfig(kp=0.6, v_max=2.0, arrive_tol=1.5))
@@ -69,6 +71,7 @@ class Real3Nav(Node):
         self.home = self.start.copy(); self.spawn_z = 5.0
         self.true_path, self.est_path, self.corr = [], [], []
         self.fixes = 0; self.arrived = False; self.nearest = np.inf
+        self.arrival_confirmed = False
 
         self.cmd_pub = self.create_publisher(Twist, '/frugalnav/nav_cmd', 10)
         self.viz_pub = self.create_publisher(MarkerArray, '/frugalnav/viz', 10)
@@ -97,6 +100,8 @@ class Real3Nav(Node):
             if t[0] == 'target': self.B = np.array([float(t[1]), float(t[2])])
             elif t[0] == 'start': self.start = np.array([float(t[1]), float(t[2])])
             elif t[0] == 'pillar': self.ref_obst.append((float(t[1]), float(t[2]), float(t[3])))
+            elif t[0] == 'building':
+                self.ref_boxes.append(tuple(float(v) for v in t[1:6]))
 
     def on_truth(self, m): self.true = np.array([m.pose.pose.position.x, m.pose.pose.position.y])
     def on_vio(self, m):
@@ -110,7 +115,8 @@ class Real3Nav(Node):
     def on_teleop(self, m): self.teleop_vel = np.array([m.linear.x, m.linear.y])
     def on_ctrl(self, m):
         c = m.data
-        if c in ('auto', 'manual'): self.mode = c; self.arrived = False
+        if c in ('auto', 'manual'):
+            self.mode = c; self.arrived = False; self.arrival_confirmed = False
         elif c == 'pause': self.paused = True
         elif c in ('play', 'resume'): self.paused = False
         elif c == 'reset': self.reset_home()
@@ -138,6 +144,7 @@ class Real3Nav(Node):
         self.fusion.state.xy = self.home.copy()
         self.true_path.clear(); self.est_path.clear(); self.corr.clear()
         self.fixes = 0; self.arrived = False; self.paused = True
+        self.arrival_confirmed = False
         self.get_logger().info(f'RESET -> home {self.home}, holding')
 
     def reposition(self, delta):
@@ -224,11 +231,18 @@ class Real3Nav(Node):
         # --- FRUGAL correction: only when U fires AND a fresh camera fix exists ---
         fix_fresh = (self.fix is not None and self.now() - self.fix_t < 0.5
                      and self.fix_t > self.fix_used_t)
-        if trig and fix_fresh:
+        # Once we believe we have arrived, spend one fix to confirm it. Without this the
+        # drone stops, uncertainty stops growing (it scales with distance travelled), no
+        # fix ever fires again, and whatever drift it had becomes the permanent miss.
+        confirming = (self.mode == 'auto' and not self.arrival_confirmed
+                      and self.ctrl.arrived(est))
+        if (trig or confirming) and fix_fresh:
             self.fusion.update(LandmarkFix(xy=self.fix, yaw=0.0,
                                covariance=np.eye(2) * 0.25, marker_id=0), gain=None)
             self.sched.reset_after_fix()
             self.fix_used_t = self.fix_t; self.fixes += 1; self.corr.append(self.fusion.state.xy.copy())
+            if confirming and self.ctrl.arrived(self.fusion.state.xy):
+                self.arrival_confirmed = True    # still arrived after the fix -> we're there
         est = self.fusion.state.xy
 
         # --- control: seek target with laser avoidance, then WIND FEEDFORWARD ---
@@ -274,13 +288,20 @@ class Real3Nav(Node):
 
     def publish_scene(self):
         a = MarkerArray()
-        # faint REFERENCE pillars so you can see where the obstacles are. The navigator
-        # never reads these -- it avoids purely from the live laser (the red hit dots).
-        for j, (ox, oy, r) in enumerate(self.ref_obst):
-            c = self.mk(40 + j, Marker.CYLINDER, 1.0, 0.5, 0.53, 0.58, 0.30)
-            c.scale.x = c.scale.y = 2 * r; c.scale.z = 12.0
-            c.pose.position.x, c.pose.position.y, c.pose.position.z = ox, oy, 6.0
-            a.markers.append(c)
+        # faint REFERENCE obstacles so you can see where they are. The navigator never
+        # reads these -- it avoids purely from the live laser (the red hit dots).
+        # Boxes win when a map provides them, so a city is not drawn as circles.
+        for j, (ox, oy, sx, sy, h) in enumerate(self.ref_boxes):
+            b = self.mk(60 + j, Marker.CUBE, 1.0, 0.5, 0.53, 0.58, 0.30)
+            b.scale.x, b.scale.y, b.scale.z = sx, sy, h
+            b.pose.position.x, b.pose.position.y, b.pose.position.z = ox, oy, h / 2
+            a.markers.append(b)
+        if not self.ref_boxes:
+            for j, (ox, oy, r) in enumerate(self.ref_obst):
+                c = self.mk(40 + j, Marker.CYLINDER, 1.0, 0.5, 0.53, 0.58, 0.30)
+                c.scale.x = c.scale.y = 2 * r; c.scale.z = 12.0
+                c.pose.position.x, c.pose.position.y, c.pose.position.z = ox, oy, 6.0
+                a.markers.append(c)
         tgt = self.mk(2, Marker.CYLINDER, 1.2, 0.98, 0.75, 0.14, 0.95); tgt.scale.z = 3.0
         tgt.pose.position.x, tgt.pose.position.y, tgt.pose.position.z = float(self.B[0]), float(self.B[1]), 1.5
         a.markers.append(tgt); self.scene_pub.publish(a)

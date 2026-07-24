@@ -266,6 +266,79 @@ def build_real_dense():
     return len(obstacles), len(markers)
 
 
+def build_city():
+    # Dense city block for demo 3. Most buildings are LOW (under flight altitude) so the
+    # drone overflies them and the horizontal laser never sees them -- they are there for
+    # density and for camera texture. The scattered TOWERS punch through the flight level
+    # and are the real obstacles. Towers are kept at least two grid cells apart so the
+    # reactive potential field always has a way through.
+    rng = random.Random(21)
+    start, target = (64.0, 22.0), (6.0, 22.0)
+    hard = (35.0, 22.0, 10.0)
+    FLIGHT_Z = 5.0
+
+    gx = list(range(6, 69, 8))       # 8 columns
+    gy = list(range(4, 45, 8))       # 6 rows  -> a packed grid of city blocks
+    buildings, towers = [], []
+    for i, bx in enumerate(gx):
+        for j, by in enumerate(gy):
+            x = bx + rng.uniform(-0.6, 0.6)
+            y = by + rng.uniform(-0.6, 0.6)
+            if (math.hypot(x - start[0], y - start[1]) < 7 or
+                    math.hypot(x - target[0], y - target[1]) < 7):
+                continue
+            # Towers on every 2nd column and every 2nd row. That puts a row of them
+            # directly across the start->target avenue, so the drone has to slalom, while
+            # the 16 m column spacing still leaves a gap the reactive avoider can take.
+            # (Packing them tighter traps it in a local minimum -- verified.)
+            tall = (i % 2 == 0 and j % 2 == 0)
+            sx, sy = rng.uniform(4.4, 5.2), rng.uniform(4.4, 5.2)
+            h = rng.uniform(12.0, 28.0) if tall else rng.uniform(2.0, 4.2)
+            buildings.append((x, y, sx, sy, h))
+            if h > FLIGHT_Z:
+                towers.append((x, y, sx, sy, h))
+
+    # ArUco tiles down the streets: a 2.6 m tile needs half its width clear of any facade
+    markers, mid = [], 0
+    for mx in range(6, 70, 4):
+        for my in range(4, 46, 4):
+            if mid >= 48:
+                break
+            clear = all(abs(mx - bx) > sx / 2 + 1.45 or abs(my - by) > sy / 2 + 1.45
+                        for (bx, by, sx, sy, h) in buildings)
+            if clear:
+                markers.append((mid, float(mx), float(my))); mid += 1
+
+    bodies = []
+    for i, (x, y, sx, sy, h) in enumerate(buildings):
+        shade = rng.uniform(0.26, 0.46)
+        rgba = (shade, shade + 0.02, shade + 0.06, 1)
+        bodies.append(box(f"bldg{i}", x, y, sx, sy, h, rgba))
+    bodies.append(disc("hard_patch", hard[0], hard[1], hard[2], (0.96, 0.62, 0.04, 0.16), 0.03))
+    for (i, x, y) in markers:
+        bodies.append(aruco_tile(f"aruco{i}", x, y, i))
+    bodies.append(cyl("target_B", *target, 0.6, 3.0, (0.98, 0.75, 0.14, 1), z=1.5))
+    bodies.append(cyl("start_pad", *start, 1.0, 0.04, (0.20, 0.83, 0.44, 0.85), z=0.02))
+
+    with open(os.path.join(PKG, "worlds", "city.world"), "w") as f:
+        f.write(world("city", bodies, (0.17, 0.17, 0.19), bg="0.55 0.58 0.63 1", fog_density=0.02))
+
+    lines = [f"target {target[0]:.3f} {target[1]:.3f}",
+             f"start {start[0]:.3f} {start[1]:.3f}",
+             f"hard {hard[0]:.3f} {hard[1]:.3f} {hard[2]:.3f}"]
+    # `building` = accurate box for the RViz reference; `pillar` = circular approximation
+    # so the map-based demo-2 navigator can also fly this map.
+    for (x, y, sx, sy, h) in towers:
+        lines.append(f"building {x:.3f} {y:.3f} {sx:.3f} {sy:.3f} {h:.3f}")
+    for (x, y, sx, sy, h) in towers:
+        lines.append(f"pillar {x:.3f} {y:.3f} {max(sx, sy) * 0.5:.3f}")
+    for (i, x, y) in markers:
+        lines.append(f"amarker {i} {x:.3f} {y:.3f}")
+    with open(os.path.join(PKG, "config", "city_scene.txt"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+    return len(buildings), len(towers), len(markers)
+
+
 if __name__ == "__main__":
     import sys
     os.makedirs(os.path.join(PKG, "config"), exist_ok=True)
@@ -274,8 +347,10 @@ if __name__ == "__main__":
     if len(sys.argv) > 1 and sys.argv[1] == "real":
         ro, rm = build_real()
         rdo, rdm = build_real_dense()
+        cb, ct, cm = build_city()
         print(f"real:       {ro} obstacles, {rm} ArUco markers (ids 0..{rm-1})")
         print(f"real_dense: {rdo} obstacles, {rdm} ArUco markers (ids 0..{rdm-1})")
+        print(f"city:       {cb} buildings ({ct} tall enough to be obstacles), {cm} markers")
     else:
         do, dm = build_demo()
         co, cm = build_canopy()

@@ -20,7 +20,8 @@ from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 from launch_ros.parameter_descriptions import ParameterValue
 
-START = {'real': ('28', '10', '5'), 'real_dense': ('46', '15', '5')}
+START = {'real': ('28', '10', '5'), 'real_dense': ('46', '15', '5'),
+         'city': ('64', '22', '5')}
 
 
 def _setup(context, *args, **kwargs):
@@ -70,7 +71,8 @@ def generate_launch_description():
     media = os.path.join(pkg, 'media')
     res = os.environ.get('GAZEBO_RESOURCE_PATH', '')
     return LaunchDescription([
-        DeclareLaunchArgument('map', default_value='real', description='real | real_dense'),
+        DeclareLaunchArgument('map', default_value='real',
+                              description='real | real_dense | city'),
         DeclareLaunchArgument('gui', default_value='false'),
         DeclareLaunchArgument('rviz', default_value='true'),
         DeclareLaunchArgument('start_paused', default_value='false',

@@ -145,7 +145,14 @@ one.
 |---|---|---|---|
 | **1 — Sandbox** | `demo`, `canopy` | Scheduler + full weather simulator + manual flight | Gazebo 3D |
 | **2 — Real camera** | `real`, `real_dense` | Genuine ArUco perception, wind inferred | RViz + camera feed |
-| **3 — Full realism** | `real`, `real_dense` | Real optical-flow VIO + real laser obstacles | RViz + both feeds |
+| **3 — Full realism** | `real`, `real_dense`, `city` | Real optical-flow VIO + real laser obstacles | RViz + both feeds |
+
+The `city` map is a dense urban block: 44 buildings, of which 11 are tall enough to punch
+through the flight altitude and become real obstacles. The rest sit below the drone, so it
+overflies them and the horizontal laser never sees them — they are there for density and
+camera texture. Verified end to end: the drone crosses the full 58 m on optical flow plus
+laser alone, slaloms the towers at a minimum clearance of 4.8 m, and arrives 0.9 m from the
+target with 0.15 m of estimate error.
 
 ---
 
@@ -298,6 +305,8 @@ ros2 run rqt_image_view rqt_image_view /frugalnav/front_cam/annotated
 ```
 
 Then press **SPACE** in Terminal 2 to fly.
+
+Swap the map with `map:=real_dense` (cluttered corridor) or `map:=city` (dense urban block).
 
 **Mission-control keys:** **SPACE** play/pause (a true freeze — the wind stops too) ·
 **R** reset (teleports home and holds) · **I/J/K/L** place the drone before starting ·
