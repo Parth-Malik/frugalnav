@@ -66,6 +66,7 @@ class Real3Nav(Node):
         self.scan = None
         self.gyro_mag = 0.0                       # smoothed |angular velocity| from the IMU
         self.wind_est = np.zeros(2); self.v_cmd = np.zeros(2)
+        self.wind_i = np.zeros(2)                    # bounded integral term (rejects steady wind)
         self.teleop_vel = np.zeros(2)
         self.mode = 'auto'
         self.paused = bool(self.declare_parameter('start_paused', False).value)
@@ -125,7 +126,7 @@ class Real3Nav(Node):
     def on_ctrl(self, m):
         c = m.data
         if c in ('auto', 'manual'):
-            self.mode = c; self.arrived = False; self.arrival_confirmed = False
+            self.mode = c; self.arrived = False; self.arrival_confirmed = False; self.wind_i = np.zeros(2)
         elif c == 'pause': self.paused = True
         elif c in ('play', 'resume'): self.paused = False
         elif c == 'reset': self.reset_home()
@@ -153,7 +154,7 @@ class Real3Nav(Node):
         self.fusion.state.xy = self.home.copy()
         self.true_path.clear(); self.est_path.clear(); self.corr.clear()
         self.fixes = 0; self.arrived = False; self.paused = True
-        self.arrival_confirmed = False
+        self.arrival_confirmed = False; self.wind_i = np.zeros(2)
         self.get_logger().info(f'RESET -> home {self.home}, holding')
 
     def reposition(self, delta):
@@ -223,19 +224,25 @@ class Real3Nav(Node):
             return
         dt = 0.05
 
-        # VIO stays silent until it has calibrated. Until then, dead-reckon on the
-        # commanded motion and skip the wind feed-forward -- feeding an unscaled
-        # velocity into the wind loop makes it diverge.
+        # Dead-reckon on the measured (VIO) velocity once it has calibrated; before that,
+        # on the commanded motion.
         vio_ok = (self.now() - self.vio_t) < 0.5
-        if vio_ok:
-            self.wind_est = 0.92 * self.wind_est + 0.08 * (self.vio_vel - self.v_cmd)
-            self.wind_est = np.clip(self.wind_est, -3.0, 3.0)
-            motion = self.vio_vel
-        else:
-            self.wind_est = np.zeros(2)
-            motion = self.v_cmd
+        motion = self.vio_vel if vio_ok else self.v_cmd
         self.fusion.predict(motion * dt)
         est = self.fusion.state.xy
+
+        # Wind ESTIMATE, for display only. Learned leakily and only while the drone is
+        # moving freely with good VIO, so it stays bounded. It is deliberately NOT fed
+        # back into the command: closing that loop integrates (measured - intended)
+        # velocity and runs away the instant the drone is blocked or the VIO spikes
+        # (the (3,3) clamp failure). Wind is rejected in CLOSED loop instead -- the
+        # position fixes keep the estimate honest and the controller keeps re-seeking
+        # the target, which is how a real flight controller handles a disturbance.
+        if vio_ok and self.nearest > 4.0:
+            self.wind_est = 0.9 * self.wind_est + 0.06 * (self.vio_vel - self.v_cmd)
+        else:
+            self.wind_est = 0.9 * self.wind_est
+        self.wind_est = np.clip(self.wind_est, -2.5, 2.5)
 
         # --- scheduler on measured image cues ---
         floss = max(0.0, self.prev_feats - self.feats); self.prev_feats = self.feats
@@ -254,7 +261,10 @@ class Real3Nav(Node):
         # fix ever fires again, and whatever drift it had becomes the permanent miss.
         confirming = (self.mode == 'auto' and not self.arrival_confirmed
                       and self.ctrl.arrived(est))
-        if (trig or confirming) and fix_fresh:
+        # watchdog: even when hovering (little travel -> U grows slowly -> scheduler quiet),
+        # spend a fix at least every few seconds so drift can't accumulate unbounded.
+        stale = self.fixes > 0 and (self.now() - self.fix_used_t) > 4.0
+        if (trig or confirming or stale) and fix_fresh:
             self.fusion.update(LandmarkFix(xy=self.fix, yaw=0.0,
                                covariance=np.eye(2) * 0.25, marker_id=0), gain=None)
             self.sched.reset_after_fix()
@@ -263,7 +273,7 @@ class Real3Nav(Node):
                 self.arrival_confirmed = True    # still arrived after the fix -> we're there
         est = self.fusion.state.xy
 
-        # --- control: seek target with laser avoidance, then WIND FEEDFORWARD ---
+        # --- control: seek the target with laser avoidance (closed-loop; no feedforward) ---
         if self.mode == 'manual':
             v_ctrl = self.scan_avoid(self.teleop_vel.copy())
         elif self.mode == 'auto' and self.ctrl.arrived(est):
@@ -271,7 +281,19 @@ class Real3Nav(Node):
         else:
             seek = self.B - est; n = np.linalg.norm(seek) or 1.0
             v_ctrl = self.scan_avoid(seek / n * self.ctrl.cfg.v_max)
-        self.v_cmd = v_ctrl - self.wind_est
+        # Integral disturbance rejection (a bounded PI term): near the target and clear of
+        # obstacles, accumulate the position error so a steady wind is cancelled and the
+        # drone settles. Bounded + leaky + gated -> stable, unlike the old velocity loop,
+        # and it can't fight the avoider (off near obstacles) or wind up (off far away).
+        to_goal = self.B - est
+        if self.mode == 'auto' and np.linalg.norm(to_goal) < 5.0 and self.nearest > 3.5:
+            self.wind_i = np.clip(0.99 * self.wind_i + 0.03 * to_goal, -1.8, 1.8)
+        else:
+            self.wind_i = 0.9 * self.wind_i
+        self.v_cmd = v_ctrl + self.wind_i
+        s = np.linalg.norm(self.v_cmd)
+        if s > self.ctrl.cfg.v_max * 1.8:
+            self.v_cmd = self.v_cmd / s * self.ctrl.cfg.v_max * 1.8
         self.pub_cmd(self.v_cmd[0], self.v_cmd[1])
 
         self.hold_altitude()
