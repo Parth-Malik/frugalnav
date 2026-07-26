@@ -55,8 +55,13 @@ class Real3Nav(Node):
         self.load_scene(scene)
 
         self.ctrl = TargetCentricController(self.B, ControllerConfig(kp=0.6, v_max=2.0, arrive_tol=1.5))
-        self.fusion = StateFusion(init_xy=tuple(self.start)); self.fusion.q_per_metre = 0.09
-        self.sched = UncertaintyScheduler(SchedulerConfig(tau=0.35, sigma_pos_floor=0.7))
+        # q grows the covariance faster (real optical-flow VIO drifts faster than 0.09/m
+        # under load) and tau triggers sooner, so the FIRST fix lands before the estimate
+        # has drifted metres -- otherwise the drone navigates on a stale position into a
+        # block. This only tunes the live demo; the frugality evaluation uses the core
+        # scheduler's own defaults, so the headline result is unchanged.
+        self.fusion = StateFusion(init_xy=tuple(self.start)); self.fusion.q_per_metre = 0.14
+        self.sched = UncertaintyScheduler(SchedulerConfig(tau=0.28, sigma_pos_floor=0.6))
 
         self.true = None                         # truth: error/teleport reference ONLY
         self.vio_vel = np.zeros(2)               # measured velocity (optical-flow VIO)
