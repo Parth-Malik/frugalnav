@@ -19,7 +19,11 @@ from core.blur_metric import blur_badness, gaussian_blur, laplacian_sharpness
 
 def _marker_scene():
     adict = aruco.getPredefinedDictionary(aruco.DICT_4X4_50)
-    marker = aruco.generateImageMarker(adict, 0, 300)
+    # generateImageMarker is OpenCV >= 4.7; older builds (e.g. 4.5) use drawMarker
+    if hasattr(aruco, "generateImageMarker"):
+        marker = aruco.generateImageMarker(adict, 0, 300)
+    else:
+        marker = aruco.drawMarker(adict, 0, 300)
     return cv2.copyMakeBorder(marker, 80, 80, 80, 80, cv2.BORDER_CONSTANT, value=255)
 
 
