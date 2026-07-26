@@ -53,9 +53,10 @@ def _setup(context, *args, **kwargs):
                       parameters=[{'scene_file': scene}, SIM])
     vio = Node(package='frugalnav_ros', executable='frugalnav_vio.py',
                name='frugalnav_vio', output='screen', parameters=[SIM])
+    platform = LaunchConfiguration('platform')          # 'sim' (Gazebo) or 'px4' (real drone)
     nav = Node(package='frugalnav_ros', executable='frugalnav_real3_node.py',
                name='frugalnav_real3_node', output='screen',
-               parameters=[{'scene_file': scene, 'start_paused': sp}, SIM])
+               parameters=[{'scene_file': scene, 'start_paused': sp, 'platform': platform}, SIM])
     front = Node(package='frugalnav_ros', executable='frugalnav_front_view.py',
                  name='frugalnav_front_view', output='screen', parameters=[SIM])
     wind = Node(package='frugalnav_ros', executable='frugalnav_wind.py',
@@ -81,6 +82,8 @@ def generate_launch_description():
         DeclareLaunchArgument('rviz', default_value='true'),
         DeclareLaunchArgument('start_paused', default_value='false',
                               description='hold the drone until mission control presses PLAY'),
+        DeclareLaunchArgument('platform', default_value='sim',
+                              description='sim (Gazebo) | px4 (real drone over offboard)'),
         SetEnvironmentVariable('GAZEBO_RESOURCE_PATH',
                                media + ':/usr/share/gazebo-11:' + res),
         OpaqueFunction(function=_setup),

@@ -43,6 +43,9 @@ from core.state_fusion import StateFusion
 from core.controller import TargetCentricController, ControllerConfig
 from core.types import LandmarkFix
 
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))   # sibling module
+import frugalnav_platform
+
 
 class Real3Nav(Node):
     def __init__(self):
@@ -83,7 +86,9 @@ class Real3Nav(Node):
         self.fixes = 0; self.arrived = False; self.nearest = np.inf
         self.arrival_confirmed = False
 
-        self.cmd_pub = self.create_publisher(Twist, '/frugalnav/nav_cmd', 10)
+        # platform adapter: 'sim' drives Gazebo (default), 'px4' drives a real drone.
+        # The navigation code below is identical for both.
+        self.platform = frugalnav_platform.make(self, self.declare_parameter('platform', 'sim').value)
         self.viz_pub = self.create_publisher(MarkerArray, '/frugalnav/viz', 10)
         latched = rclpy.qos.QoSProfile(
             depth=1, durability=rclpy.qos.QoSDurabilityPolicy.TRANSIENT_LOCAL)
@@ -96,7 +101,6 @@ class Real3Nav(Node):
         self.create_subscription(Imu, '/frugalnav/imu', self.on_imu, 20)
         self.create_subscription(String, '/frugalnav/ctrl', self.on_ctrl, 10)
         self.create_subscription(Twist, '/frugalnav/teleop', self.on_teleop, 10)
-        self.tele_cli = self.create_client(SetEntityState, '/gazebo/set_entity_state')
         self.publish_scene()
         self.timer = self.create_timer(0.05, self.step)      # 20 Hz
         self.get_logger().info(f'demo-3 blind nav up: target {self.B} (VIO + laser, no map)')
@@ -140,18 +144,9 @@ class Real3Nav(Node):
         elif c == 'move_west': self.reposition([-1.0, 0.0])
     def now(self): return self.get_clock().now().nanoseconds * 1e-9
 
-    # ---- teleport (reset / reposition), same mechanism as the real demo ----
+    # ---- reset / reposition -> the platform (sim teleports, PX4 flies there) ----
     def teleport(self, xy):
-        if not self.tele_cli.wait_for_service(timeout_sec=0.3):
-            self.get_logger().warn('set_entity_state not ready; teleport skipped'); return
-        req = SetEntityState.Request()
-        req.state.name = 'frugalnav_drone'
-        req.state.pose.position.x = float(xy[0])
-        req.state.pose.position.y = float(xy[1])
-        req.state.pose.position.z = float(self.spawn_z)
-        req.state.pose.orientation.w = 1.0
-        req.state.reference_frame = 'world'
-        self.tele_cli.call_async(req)
+        self.platform.go_to(float(xy[0]), float(xy[1]), self.spawn_z)
 
     def reset_home(self):
         self.teleport(self.home)
@@ -300,34 +295,23 @@ class Real3Nav(Node):
                 f'nearest_obst={nz:.1f}m alt={self.alt:.1f}m feats={self.feats:.0f}')
 
     def pub_cmd(self, x, y):
-        t = Twist(); t.linear.x = float(x); t.linear.y = float(y); self.cmd_pub.publish(t)
+        self.platform.set_velocity(x, y)
 
     def hold_altitude(self):
-        # Visibility is judged from the MEASURED image only (trackable features). Under a
-        # haze bank the ground washes out and the count collapses, so drop below it; once
-        # the view is good again, climb back to cruise. planar_move only drives x/y, so
-        # altitude is applied by setting the model's z.
-        # Judge visibility by image CONTRAST (Laplacian variance), not feature count.
-        # Feature count falls with altitude too -- flying low shrinks the ground patch --
-        # so using it means the drone reads its own descent as fog and never climbs back.
-        # Contrast collapses under haze but stays high in clear air at any height.
+        # Decide the desired altitude from measured image CONTRAST (Laplacian variance):
+        # under a haze bank the ground washes out and contrast collapses, so drop below it,
+        # then climb back once it clears. Contrast (not feature count) because feature count
+        # also falls with altitude, so the drone would read its own descent as fog. The
+        # platform then realises the altitude (sim moves the model; PX4 commands it).
         if self.blur < 120:
             self.poor_vis = min(self.poor_vis + 1, 40)
         elif self.blur > 250:
             self.poor_vis = max(self.poor_vis - 1, 0)
         want = self.low_z if self.poor_vis > 8 else self.cruise_z
         if abs(want - self.alt) < 0.05:
-            return
+            return                                # at target altitude: don't disturb motion
         self.alt += max(-0.10, min(0.10, want - self.alt))    # ease, don't snap
-        if self.tele_cli.service_is_ready():
-            req = SetEntityState.Request()
-            req.state.name = 'frugalnav_drone'
-            req.state.pose.position.x = float(self.true[0])
-            req.state.pose.position.y = float(self.true[1])
-            req.state.pose.position.z = float(self.alt)
-            req.state.pose.orientation.w = 1.0
-            req.state.reference_frame = 'world'
-            self.tele_cli.call_async(req)
+        self.platform.set_altitude(self.alt)
 
     # ---- visualization ----
     def mk(self, i, typ, s, r, g, b, a):

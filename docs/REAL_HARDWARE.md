@@ -35,25 +35,30 @@ the gyro, and the altitude scale comes from the rangefinder.
 - **`core/`** — no ROS, no OS, no allocation in the hot loop; the C++ port in `cpp/` is
   the same logic for an embedded target.
 
-## The one part you swap: the motion output
+## The one part you swap: the motion output (already abstracted)
 
-This is the only genuinely sim-specific piece. In simulation the navigator's output is
-turned into motion two ways that a real drone cannot use:
+This is the only genuinely sim-specific piece, and it now lives behind a **platform
+adapter** so nothing in the navigator changes. The nav (`frugalnav_real3_node.py`) only
+ever calls three methods on `self.platform`:
 
-1. **Horizontal motion** is published to `/frugalnav/cmd_vel` and applied by Gazebo's
-   `planar_move` plugin (a holonomic puck at fixed height).
-2. **Altitude changes** are applied by teleporting the model's `z`.
+```
+set_velocity(vx, vy)   world-frame horizontal velocity setpoint  [m/s]
+set_altitude(z)        desired altitude setpoint                  [m]
+go_to(x, y, z)         reposition / reset to a pose
+```
 
-On a real drone both go to the **flight controller** instead. With PX4 (≥ v1.14, ROS 2
-native over uXRCE-DDS) you write a small **platform adapter node** that:
+`scripts/frugalnav_platform.py` implements two adapters:
 
-- takes the navigator's desired horizontal velocity and target altitude,
-- publishes them as an offboard setpoint (`/fmu/in/trajectory_setpoint` or a velocity
-  setpoint), and
-- lets PX4's controllers turn that into motor commands.
+- **`SimPlatform`** (default, `platform:=sim`) — velocity to `/frugalnav/nav_cmd`
+  (planar_move), altitude/pose by teleport. This is the simulation.
+- **`Px4Platform`** (`platform:=px4`) — streams the standard PX4 offboard messages
+  (`OffboardControlMode` heartbeat + `TrajectorySetpoint`) over uXRCE-DDS, with `go_to`
+  flying to a pose instead of teleporting. Needs `px4_msgs` and a running PX4 (≥ v1.14).
 
-Nothing in `core/` or the perception/VIO/scheduler nodes changes. You are replacing the
-"puck + teleport" with "setpoint to a real controller."
+To fly it for real you launch with `platform:=px4`, run PX4 + the DDS agent, and handle
+arming / the switch into OFFBOARD mode (a `VehicleCommand` startup routine). The
+navigation code, the scheduler, the perception and the VIO are all identical between the
+two — that is the whole point of the seam.
 
 ### A subtlety worth knowing
 
