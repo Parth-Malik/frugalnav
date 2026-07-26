@@ -1,0 +1,5 @@
+# Executable scripts must stay LF, or the shebang breaks on Linux
+# (env looks for "python3\r"). .bat stays CRLF for Windows.
+*.py  text eol=lf
+*.sh  text eol=lf
+*.bat text eol=crlf
