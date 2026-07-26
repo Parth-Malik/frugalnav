@@ -44,23 +44,18 @@ def _setup(context, *args, **kwargs):
     spawn = Node(package='gazebo_ros', executable='spawn_entity.py',
                  arguments=['-entity', 'frugalnav_drone', '-file', model,
                             '-x', sx, '-y', sy, '-z', sz], output='screen')
-    # Run the whole pipeline on SIMULATION time. Gazebo publishes /clock; with this the
-    # nodes' timers and the VIO's frame-to-frame dt track sim time, so when a heavy WSL
-    # session slows the sim the timing stays consistent and the flow velocity is not
-    # corrupted (which is what made the estimate diverge under load).
-    SIM = {'use_sim_time': True}
     perception = Node(package='frugalnav_ros', executable='frugalnav_perception.py',
                       name='frugalnav_perception', output='screen',
-                      parameters=[{'scene_file': scene}, SIM])
+                      parameters=[{'scene_file': scene}])
     vio = Node(package='frugalnav_ros', executable='frugalnav_vio.py',
-               name='frugalnav_vio', output='screen', parameters=[SIM])
+               name='frugalnav_vio', output='screen')
     nav = Node(package='frugalnav_ros', executable='frugalnav_real3_node.py',
                name='frugalnav_real3_node', output='screen',
-               parameters=[{'scene_file': scene, 'start_paused': sp}, SIM])
+               parameters=[{'scene_file': scene, 'start_paused': sp}])
     front = Node(package='frugalnav_ros', executable='frugalnav_front_view.py',
-                 name='frugalnav_front_view', output='screen', parameters=[SIM])
+                 name='frugalnav_front_view', output='screen')
     wind = Node(package='frugalnav_ros', executable='frugalnav_wind.py',
-                name='frugalnav_wind', output='screen', parameters=[{'start_paused': sp}, SIM])
+                name='frugalnav_wind', output='screen', parameters=[{'start_paused': sp}])
     rviz = Node(package='rviz2', executable='rviz2', name='rviz2',
                 arguments=['-d', rviz_cfg], output='screen',
                 condition=IfCondition(LaunchConfiguration('rviz')))
