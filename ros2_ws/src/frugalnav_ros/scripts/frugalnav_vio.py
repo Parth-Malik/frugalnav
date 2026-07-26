@@ -1,19 +1,26 @@
 #!/usr/bin/env python3
 """
-Visual odometry from the downward camera.
+Visual-inertial odometry from the downward camera.
 
-Tracks sparse features with Lucas-Kanade optical flow and turns the pixel flow into a
-metric velocity using the altitude (v = flow * altitude / fx). Publishes
-/frugalnav/vio (Twist, world m/s).
+Tracks sparse features with Lucas-Kanade optical flow, DE-ROTATES the flow using the
+gyro (a real drone tilts to move, which swings the camera -- without this the flow
+would read that tilt as translation), and scales it to a metric velocity with the
+altimeter (v = flow * altitude / fx). Publishes /frugalnav/vio (Twist, world m/s).
 
-Integrating this velocity drifts, which is the point: the ArUco fixes are what bound
-the drift. Kept cheap on purpose -- sparse LK on ~90 features, no dense flow or stereo.
+Inputs are all standard sensor messages, so on real hardware you point it at the real
+camera / IMU / rangefinder topics unchanged:
+    /frugalnav/down_cam/image_raw  + camera_info   (sensor_msgs/Image, CameraInfo)
+    /frugalnav/imu                                 (sensor_msgs/Imu)
+    /frugalnav/height                              (sensor_msgs/Range)
+
+Integrating this velocity drifts, which is the point: the ArUco fixes bound the drift.
+Cheap on purpose -- sparse LK on ~90 features, no dense flow or stereo.
 """
 import numpy as np
 import cv2
 import rclpy
 from rclpy.node import Node
-from sensor_msgs.msg import Image, CameraInfo
+from sensor_msgs.msg import Image, CameraInfo, Imu, Range
 from geometry_msgs.msg import Twist
 from nav_msgs.msg import Odometry
 from cv_bridge import CvBridge
@@ -34,11 +41,17 @@ class VIO(Node):
         self.prev_truth = None
         self.prev_truth_t = None
         self.truth_vel = None
+        self.omega = np.zeros(3)          # body angular velocity, from the gyro
+        self.have_height = False
+        # camera-optical <- body rotation for the downward camera (pose pitch +90 deg)
+        self.R_CB = np.array([[0., -1., 0.], [-1., 0., 0.], [0., 0., -1.]])
         self.pub = self.create_publisher(Twist, '/frugalnav/vio', 10)
         self.create_subscription(CameraInfo, '/frugalnav/down_cam/camera_info', self.on_info, 5)
         self.create_subscription(Image, '/frugalnav/down_cam/image_raw', self.on_img, 5)
+        self.create_subscription(Imu, '/frugalnav/imu', self.on_imu, 20)
+        self.create_subscription(Range, '/frugalnav/height', self.on_height, 10)
         self.create_subscription(Odometry, '/frugalnav/truth', self.on_truth, 10)
-        self.get_logger().info('VIO up: optical-flow odometry on the downward camera')
+        self.get_logger().info('VIO up: visual-inertial odometry on the downward camera')
 
     def now(self):
         return self.get_clock().now().nanoseconds * 1e-9
@@ -47,11 +60,22 @@ class VIO(Node):
         if self.K is None:
             self.K = np.array(m.k, float).reshape(3, 3)
 
+    def on_imu(self, m):
+        w = m.angular_velocity
+        self.omega = np.array([w.x, w.y, w.z])
+
+    def on_height(self, m):
+        # real altimeter -> the metric scale for the flow
+        if 0.1 < m.range < 40.0:
+            self.alt = max(0.3, float(m.range)); self.have_height = True
+
     def on_truth(self, m):
-        # Only used for altitude (stands in for an altimeter) and the one-time flow
-        # calibration below. Not used for the runtime velocity.
+        # Runtime altitude now comes from /frugalnav/height. Truth is used only for the
+        # one-time flow calibration (and as an altitude fallback if no altimeter is up),
+        # never for the runtime velocity.
         p = np.array([m.pose.pose.position.x, m.pose.pose.position.y])
-        self.alt = max(0.5, float(m.pose.pose.position.z))
+        if not self.have_height:
+            self.alt = max(0.5, float(m.pose.pose.position.z))
         t = self.now()
         if self.prev_truth is not None:
             step = np.linalg.norm(p - self.prev_truth)
@@ -81,6 +105,12 @@ class VIO(Node):
                 if len(good_new) >= 6:
                     # LK returns (N,1,2); flatten so the median is a 2-vector
                     flow = np.median((good_new - good_old).reshape(-1, 2), axis=0)  # px/frame
+                    # DE-ROTATE: remove the flow the camera's own rotation produced. At the
+                    # image centre the rotational flow is f*dt*[-wc_y, wc_x], where wc is the
+                    # angular velocity in the camera frame. Zero when the drone isn't turning
+                    # (as in this planar sim); essential once it tilts to move.
+                    wc = self.R_CB @ self.omega
+                    flow = flow - self.K[0, 0] * dt * np.array([-wc[1], wc[0]])
                     if np.linalg.norm(flow) < 120:                  # reject tracking glitches
                         disp = flow * (self.alt / self.K[0, 0])     # metric ground displacement
                         vel_cam = disp / dt

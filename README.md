@@ -121,21 +121,25 @@ This matters more than any performance number, so it is stated plainly.
 | Obstacles | known map | known map | **real laser rangefinder** |
 | Wind | injected (you set it) | **inferred** | **inferred** |
 
-In **Demo 3 no navigation decision uses ground truth.** Seeking, avoidance, fusion and
-prediction all run on the estimate, the laser scan, the optical flow and the ArUco fixes.
-Ground truth is touched only to draw the error in RViz, to teleport on reset, and for two
-calibration steps:
+In **Demo 3 no navigation decision uses ground truth, and neither does the runtime scale.**
+Seeking, avoidance, fusion and prediction run on the estimate, the laser scan, the optical
+flow and the ArUco fixes. The drone carries a real **IMU** (the gyro de-rotates the optical
+flow, which is what keeps flow honest once a real drone tilts) and a downward **rangefinder**
+(the altitude that scales the flow). Ground truth is touched only to draw the error in RViz,
+to teleport on reset, and for one bench-style step: the camera→world rotation and the AVL
+mounting offset are each fitted once at startup, exactly like bench-calibrating a sensor
+mount — on real hardware this is a checkerboard calibration, and the code already consumes
+the resulting `camera_info`.
 
-1. **Altitude** is read from the simulator as a stand-in for a cheap altimeter — optical
-   flow needs a metric scale, and every real flow deck pairs with one.
-2. **Two one-time mounting calibrations** (the camera→world rotation for VIO, the
-   extrinsic offset for AVL) are fitted against truth once at startup, equivalent to
-   bench-calibrating a sensor mount at the factory. Runtime uses the calibrated result.
+The nodes consume only **standard ROS sensor messages** (`Image`, `Imu`, `Range`,
+`LaserScan`), so on a real drone you point them at real sensor drivers unchanged. The one
+piece that is simulation-specific is the motion output (a planar-move plugin plus altitude
+teleport), which you swap for a flight-controller setpoint. See
+[`docs/REAL_HARDWARE.md`](docs/REAL_HARDWARE.md) for the full deployment path.
 
-Also honest: the arenas and sensors are simulated in Gazebo, and the RISC-V target is a
-feasibility study (C++ port plus profiling), not silicon. The laser avoider is a reactive
-potential field, so it takes a conservative, sometimes curved path rather than an optimal
-one.
+Still honest: the arenas and sensors are simulated in Gazebo, the RISC-V target is a
+feasibility study (C++ port plus profiling) not silicon, and the laser avoider is a reactive
+potential field, so it takes a conservative, sometimes curved path rather than an optimal one.
 
 ---
 
@@ -473,13 +477,16 @@ driver that produces the headline table.
   and trackable-feature count → `/frugalnav/cues`. Publishes an annotated feed on
   `/frugalnav/down_cam/annotated`. Contains a one-time mounting calibration that fits an
   image→world offset over 40 samples, which reduced fix error from about 4 m to 0.05 m.
-* **`frugalnav_vio.py`** — Demo 3's real VIO front end. Tracks ~90 sparse features with
-  Lucas-Kanade between frames, converts median pixel flow into metric velocity using
-  altitude and focal length, and publishes `/frugalnav/vio`. The camera→world mapping is
-  fitted with an **orthogonal (Procrustes)** calibration rather than plain least squares —
-  a general 2×2 fit overfits the mostly one-directional calibration motion and diverges
-  once the drone turns. It stays silent until calibrated, so an unscaled velocity can
-  never enter the wind loop.
+* **`frugalnav_vio.py`** — Demo 3's real visual-inertial front end. Tracks ~90 sparse
+  features with Lucas-Kanade between frames, **de-rotates the flow with the gyro**
+  (`/frugalnav/imu`) so the camera's own tilt is not mistaken for translation, scales the
+  result to metric velocity using the **rangefinder** altitude (`/frugalnav/height`) and
+  the focal length, and publishes `/frugalnav/vio`. The camera→world mapping is fitted with
+  an **orthogonal (Procrustes)** calibration rather than plain least squares — a general
+  2×2 fit overfits the mostly one-directional calibration motion and diverges once the
+  drone turns. It stays silent until calibrated, so an unscaled velocity can never enter
+  the wind loop. Every input is a standard sensor message, so it runs unchanged on real
+  camera / IMU / rangefinder drivers.
 * **`frugalnav_real_node.py`** — Demo 2 navigator. Runs the real core on camera fixes and
   image cues, with a simulated VIO drift model, and infers wind from commanded-versus-
   achieved velocity.

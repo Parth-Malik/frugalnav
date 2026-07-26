@@ -22,6 +22,11 @@
           <horizontal_fov>1.5</horizontal_fov>
           <image><width>640</width><height>480</height><format>R8G8B8</format></image>
           <clip><near>0.1</near><far>80</far></clip>
+          <!-- real lens: mild barrel distortion + sensor noise. camera_info carries the
+               coefficients, and perception passes them to solvePnP, so this is the exact
+               path a real camera takes (undistort before pose). -->
+          <distortion><k1>-0.08</k1><k2>0.02</k2><k3>0.0</k3><p1>0.0</p1><p2>0.0</p2><center>0.5 0.5</center></distortion>
+          <noise><type>gaussian</type><mean>0.0</mean><stddev>0.005</stddev></noise>
         </camera>
         <plugin name="down_cam_plugin" filename="libgazebo_ros_camera.so">
           <ros><namespace>/frugalnav</namespace></ros>
@@ -67,6 +72,42 @@
         <plugin name="scan_plugin" filename="libgazebo_ros_ray_sensor.so">
           <ros><namespace>/frugalnav</namespace><remapping>~/out:=scan</remapping></ros>
           <output_type>sensor_msgs/LaserScan</output_type>
+          <frame_name>base_link</frame_name>
+        </plugin>
+      </sensor>
+
+      <!-- IMU: gyro + accel at 200 Hz. The gyro de-rotates the optical flow (a real
+           drone tilts to move, which swings the camera; without this the flow reads
+           that tilt as translation). Also feeds the scheduler's inertial cue. -->
+      <sensor name="imu" type="imu">
+        <always_on>1</always_on>
+        <update_rate>200</update_rate>
+        <imu>
+          <angular_velocity><x><noise type="gaussian"><stddev>0.003</stddev></noise></x>
+            <y><noise type="gaussian"><stddev>0.003</stddev></noise></y>
+            <z><noise type="gaussian"><stddev>0.003</stddev></noise></z></angular_velocity>
+        </imu>
+        <plugin name="imu_plugin" filename="libgazebo_ros_imu_sensor.so">
+          <ros><namespace>/frugalnav</namespace><remapping>~/out:=imu</remapping></ros>
+          <frame_name>base_link</frame_name>
+        </plugin>
+      </sensor>
+
+      <!-- downward single-beam rangefinder = the altimeter. Optical flow needs a metric
+           scale (v = flow * altitude / focal); this supplies the altitude for real. -->
+      <sensor name="altimeter" type="ray">
+        <pose>0 0 -0.12 0 1.5708 0</pose>
+        <always_on>1</always_on>
+        <update_rate>30</update_rate>
+        <ray>
+          <scan><horizontal><samples>1</samples><resolution>1</resolution>
+            <min_angle>0</min_angle><max_angle>0</max_angle></horizontal></scan>
+          <range><min>0.1</min><max>40.0</max><resolution>0.01</resolution></range>
+          <noise><type>gaussian</type><mean>0.0</mean><stddev>0.01</stddev></noise>
+        </ray>
+        <plugin name="alt_plugin" filename="libgazebo_ros_ray_sensor.so">
+          <ros><namespace>/frugalnav</namespace><remapping>~/out:=height</remapping></ros>
+          <output_type>sensor_msgs/Range</output_type>
           <frame_name>base_link</frame_name>
         </plugin>
       </sensor>

@@ -19,7 +19,7 @@ from rclpy.node import Node
 from geometry_msgs.msg import Twist, PointStamped
 from std_msgs.msg import Float32MultiArray, String
 from nav_msgs.msg import Odometry
-from sensor_msgs.msg import LaserScan
+from sensor_msgs.msg import LaserScan, Imu
 from visualization_msgs.msg import Marker, MarkerArray
 from gazebo_msgs.srv import SetEntityState
 
@@ -64,6 +64,7 @@ class Real3Nav(Node):
         self.fix = None; self.fix_t = -1.0; self.fix_used_t = -1.0
         self.blur = 300.0; self.feats = 60.0; self.prev_feats = 60.0
         self.scan = None
+        self.gyro_mag = 0.0                       # smoothed |angular velocity| from the IMU
         self.wind_est = np.zeros(2); self.v_cmd = np.zeros(2)
         self.teleop_vel = np.zeros(2)
         self.mode = 'auto'
@@ -87,6 +88,7 @@ class Real3Nav(Node):
         self.create_subscription(PointStamped, '/frugalnav/fix', self.on_fix, 10)
         self.create_subscription(Float32MultiArray, '/frugalnav/cues', self.on_cues, 10)
         self.create_subscription(LaserScan, '/frugalnav/scan', self.on_scan, 10)
+        self.create_subscription(Imu, '/frugalnav/imu', self.on_imu, 20)
         self.create_subscription(String, '/frugalnav/ctrl', self.on_ctrl, 10)
         self.create_subscription(Twist, '/frugalnav/teleop', self.on_teleop, 10)
         self.tele_cli = self.create_client(SetEntityState, '/gazebo/set_entity_state')
@@ -116,6 +118,9 @@ class Real3Nav(Node):
     def on_cues(self, m):
         if len(m.data) >= 2: self.blur, self.feats = float(m.data[0]), float(m.data[1])
     def on_scan(self, m): self.scan = m
+    def on_imu(self, m):
+        w = m.angular_velocity
+        self.gyro_mag = 0.8 * self.gyro_mag + 0.2 * float(np.hypot(w.x, np.hypot(w.y, w.z)))
     def on_teleop(self, m): self.teleop_vel = np.array([m.linear.x, m.linear.y])
     def on_ctrl(self, m):
         c = m.data
@@ -234,8 +239,11 @@ class Real3Nav(Node):
 
         # --- scheduler on measured image cues ---
         floss = max(0.0, self.prev_feats - self.feats); self.prev_feats = self.feats
+        # inertial cue from the real gyro: ~0.02 at rest, rising as the drone rotates
+        # (rotation degrades the flow, so the scheduler should trust it less)
+        imu_bias = min(0.2, 0.02 + 0.4 * self.gyro_mag)
         cues = dict(sigma_pos=self.fusion.sigma_pos(), sigma_head=0.01,
-                    blur=self.blur, feature_loss=floss, imu_bias=0.02, active_features=self.feats)
+                    blur=self.blur, feature_loss=floss, imu_bias=imu_bias, active_features=self.feats)
         U, trig, reason, _ = self.sched.compute(cues)
 
         # --- FRUGAL correction: only when U fires AND a fresh camera fix exists ---
