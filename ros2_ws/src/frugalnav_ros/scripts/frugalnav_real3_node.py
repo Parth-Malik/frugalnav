@@ -229,7 +229,10 @@ class Real3Nav(Node):
         vio_ok = (self.now() - self.vio_t) < 0.5
         if vio_ok:
             self.wind_est = 0.92 * self.wind_est + 0.08 * (self.vio_vel - self.v_cmd)
-            self.wind_est = np.clip(self.wind_est, -3.0, 3.0)
+            # tighter clamp: real wind here is ~0.8 m/s, so bound the estimate near that.
+            # A 3 m/s clamp let a diverged estimate shove the drone through obstacle
+            # avoidance and pin it against a block.
+            self.wind_est = np.clip(self.wind_est, -1.5, 1.5)
             motion = self.vio_vel
         else:
             self.wind_est = np.zeros(2)
@@ -271,7 +274,11 @@ class Real3Nav(Node):
         else:
             seek = self.B - est; n = np.linalg.norm(seek) or 1.0
             v_ctrl = self.scan_avoid(seek / n * self.ctrl.cfg.v_max)
-        self.v_cmd = v_ctrl - self.wind_est
+        # Apply only 0.6 of the wind estimate. With full feedforward the wind loop is a
+        # pure integrator (the v_cmd term cancels the 0.92 leak) and runs to the clamp;
+        # at 0.6 the effective factor drops below 1, so it's a stable leaky estimator that
+        # still cancels most of the wind but can't run away and jam the drone on a block.
+        self.v_cmd = v_ctrl - 0.6 * self.wind_est
         self.pub_cmd(self.v_cmd[0], self.v_cmd[1])
 
         self.hold_altitude()
