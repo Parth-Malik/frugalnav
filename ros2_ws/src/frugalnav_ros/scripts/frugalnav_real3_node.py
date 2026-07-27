@@ -202,11 +202,19 @@ class Real3Nav(Node):
                 into = -float(v @ away)
                 if into > 0:
                     v = v + away * into
-        # Tangential term: circle the nearest obstacle toward the goal side. Without it
-        # seek and repulsion can balance exactly and the drone sits still.
+        # Tangential term: circle the obstacle field toward the goal side so seek and
+        # repulsion can't balance to a dead stop. Take the tangent of the *resultant*
+        # repulsion (v - base = the sum of every sector's push), not of the single nearest
+        # pillar. With several clustered pillars (the real map) the nearest one flips
+        # frame-to-frame and a per-pillar tangent flips with it, spinning the drone in place;
+        # the resultant points steadily away from the cluster's centre, so the tangent is
+        # stable and the drone orbits out consistently. With one dominant obstacle (most of
+        # the city) the resultant is that obstacle, i.e. the original proven behaviour.
         if nearest_away is not None and self.nearest < rmax:
             bhat = base / (np.linalg.norm(base) + 1e-9)
-            tang = np.array([-nearest_away[1], nearest_away[0]])
+            rep = v - base
+            ohat = rep / np.linalg.norm(rep) if np.linalg.norm(rep) > 1e-6 else nearest_away
+            tang = np.array([-ohat[1], ohat[0]])
             if tang @ bhat < 0:
                 tang = -tang
             v = v + tang * min(2.0, 2.2 * (1.0 - self.nearest / rmax))
