@@ -74,6 +74,7 @@ class Real3Nav(Node):
         self.scan = None
         self.gyro_mag = 0.0                       # smoothed |angular velocity| from the IMU
         self.wind_est = np.zeros(2); self.v_cmd = np.zeros(2)
+        self.wind_i = np.zeros(2)                    # bounded integral term (rejects steady wind)
         self.teleop_vel = np.zeros(2)
         self.mode = 'auto'
         self.paused = bool(self.declare_parameter('start_paused', False).value)
@@ -134,7 +135,7 @@ class Real3Nav(Node):
     def on_ctrl(self, m):
         c = m.data
         if c in ('auto', 'manual'):
-            self.mode = c; self.arrived = False; self.arrival_confirmed = False
+            self.mode = c; self.arrived = False; self.arrival_confirmed = False; self.wind_i = np.zeros(2)
         elif c == 'pause': self.paused = True
         elif c in ('play', 'resume'): self.paused = False
         elif c == 'reset': self.reset_home()
@@ -153,7 +154,7 @@ class Real3Nav(Node):
         self.fusion.state.xy = self.home.copy()
         self.true_path.clear(); self.est_path.clear(); self.corr.clear()
         self.fixes = 0; self.arrived = False; self.paused = True
-        self.arrival_confirmed = False
+        self.arrival_confirmed = False; self.wind_i = np.zeros(2)
         self.get_logger().info(f'RESET -> home {self.home}, holding')
 
     def reposition(self, delta):
@@ -223,22 +224,21 @@ class Real3Nav(Node):
             return
         dt = 0.05
 
-        # VIO stays silent until it has calibrated. Until then, dead-reckon on the
-        # commanded motion and skip the wind feed-forward -- feeding an unscaled
-        # velocity into the wind loop makes it diverge.
+        # Dead-reckon on the measured (VIO) velocity once it has calibrated; before that,
+        # on the commanded motion.
         vio_ok = (self.now() - self.vio_t) < 0.5
-        if vio_ok:
-            self.wind_est = 0.92 * self.wind_est + 0.08 * (self.vio_vel - self.v_cmd)
-            # tighter clamp: real wind here is ~0.8 m/s, so bound the estimate near that.
-            # A 3 m/s clamp let a diverged estimate shove the drone through obstacle
-            # avoidance and pin it against a block.
-            self.wind_est = np.clip(self.wind_est, -1.5, 1.5)
-            motion = self.vio_vel
-        else:
-            self.wind_est = np.zeros(2)
-            motion = self.v_cmd
+        motion = self.vio_vel if vio_ok else self.v_cmd
         self.fusion.predict(motion * dt)
         est = self.fusion.state.xy
+        # Wind ESTIMATE, for display only (leaky + gated so it stays bounded). It is NOT
+        # fed into the command: closing that loop integrates (measured - intended) velocity
+        # and runs away to the clamp the instant the drone is blocked or the VIO spikes --
+        # the (1.5,1.5) failure, on every map. Wind is rejected in closed loop below.
+        if vio_ok and self.nearest > 4.0:
+            self.wind_est = 0.9 * self.wind_est + 0.06 * (self.vio_vel - self.v_cmd)
+        else:
+            self.wind_est = 0.9 * self.wind_est
+        self.wind_est = np.clip(self.wind_est, -2.0, 2.0)
 
         # --- scheduler on measured image cues ---
         floss = max(0.0, self.prev_feats - self.feats); self.prev_feats = self.feats
@@ -257,7 +257,10 @@ class Real3Nav(Node):
         # fix ever fires again, and whatever drift it had becomes the permanent miss.
         confirming = (self.mode == 'auto' and not self.arrival_confirmed
                       and self.ctrl.arrived(est))
-        if (trig or confirming) and fix_fresh:
+        # watchdog: even when hovering (little travel -> U grows slowly), spend a fix at
+        # least every few seconds so drift can't accumulate unbounded.
+        stale = self.fixes > 0 and (self.now() - self.fix_used_t) > 4.0
+        if (trig or confirming or stale) and fix_fresh:
             self.fusion.update(LandmarkFix(xy=self.fix, yaw=0.0,
                                covariance=np.eye(2) * 0.25, marker_id=0), gain=None)
             self.sched.reset_after_fix()
@@ -272,13 +275,26 @@ class Real3Nav(Node):
         elif self.mode == 'auto' and self.ctrl.arrived(est):
             self.arrived = True; v_ctrl = np.zeros(2); self.nearest = np.inf
         else:
-            seek = self.B - est; n = np.linalg.norm(seek) or 1.0
-            v_ctrl = self.scan_avoid(seek / n * self.ctrl.cfg.v_max)
-        # Apply only 0.6 of the wind estimate. With full feedforward the wind loop is a
-        # pure integrator (the v_cmd term cancels the 0.92 leak) and runs to the clamp;
-        # at 0.6 the effective factor drops below 1, so it's a stable leaky estimator that
-        # still cancels most of the wind but can't run away and jam the drone on a block.
-        self.v_cmd = v_ctrl - 0.6 * self.wind_est
+            # decelerate on approach: full speed far out, creeping within ~5 m of the
+            # (estimated) target. Charging at full speed until arrive_tol lets any estimate
+            # lag overshoot the target and fly off the marker field, after which there are
+            # no fixes and it diverges -- the real-map failure. Slowing keeps it in the field.
+            seek = self.B - est; d = float(np.linalg.norm(seek)); n = d or 1.0
+            speed = min(self.ctrl.cfg.v_max, max(0.4, 0.4 * d))
+            v_ctrl = self.scan_avoid(seek / n * speed)
+        # Closed-loop wind rejection: near the target and clear of obstacles, accumulate a
+        # bounded integral of the position error so a steady wind is cancelled and the drone
+        # settles. Bounded + leaky + gated -> stable, and it never touches the velocity loop
+        # that used to run away. No open-loop feedforward.
+        to_goal = self.B - est
+        if self.mode == 'auto' and np.linalg.norm(to_goal) < 5.0 and self.nearest > 3.5:
+            self.wind_i = np.clip(0.99 * self.wind_i + 0.03 * to_goal, -1.8, 1.8)
+        else:
+            self.wind_i = 0.9 * self.wind_i
+        self.v_cmd = v_ctrl + self.wind_i
+        s = np.linalg.norm(self.v_cmd)
+        if s > self.ctrl.cfg.v_max * 1.8:
+            self.v_cmd = self.v_cmd / s * self.ctrl.cfg.v_max * 1.8
         self.pub_cmd(self.v_cmd[0], self.v_cmd[1])
 
         self.hold_altitude()

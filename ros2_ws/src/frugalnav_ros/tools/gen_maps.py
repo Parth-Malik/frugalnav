@@ -195,14 +195,16 @@ def build_real():
     start, target = (28.0, 10.0), (2.0, 10.0)
     hard = (15.0, 10.0, 5.0)
     obstacles = [(21.0, 12.5, 1.4), (15.0, 7.0, 1.6), (9.0, 12.0, 1.4)]
-    # ArUco markers on a grid (ids 0..N-1), avoiding obstacles
+    # Dense ArUco grid (ids 0..N-1). A ~4 m step keeps a marker inside the camera
+    # footprint the whole way, and the grid runs THROUGH the target (x from 0) so fixes
+    # don't vanish on arrival -- sparse markers let the drift-prone VIO wander off-field.
     markers = []  # (id, x, y)
     mid = 0
-    for mx in range(4, 29, 6):
-        for my in range(3, 18, 5):
-            if mid >= 24:
+    for mx in range(0, 30, 4):
+        for my in range(3, 18, 4):
+            if mid >= 60:
                 break
-            if all(math.hypot(mx - ox, my - oy) > orr + 2.4 for (ox, oy, orr) in obstacles):
+            if all(math.hypot(mx - ox, my - oy) > orr + 2.0 for (ox, oy, orr) in obstacles):
                 markers.append((mid, float(mx), float(my))); mid += 1
 
     bodies = []
@@ -245,13 +247,15 @@ def build_real_dense():
                     math.hypot(x - target[0], y - target[1]) < 6):
                 continue
             obstacles.append((x, y, rng.uniform(1.3, 1.7)))
-    # dense ArUco tile grid (unique ids 0..N-1), clear of the obstacles
+    # dense ArUco tile grid (unique ids 0..N-1), clear of the obstacles.
+    # ~4 m step + grid starting at x=0 keeps a marker in view all the way to the
+    # target at (2,15); a drift-prone VIO needs continuous fixes, not sparse ones.
     markers = []; mid = 0
-    for mx in range(3, 47, 5):
-        for my in range(4, 27, 5):
-            if mid >= 48:
+    for mx in range(0, 48, 4):
+        for my in range(4, 27, 4):
+            if mid >= 90:
                 break
-            if all(math.hypot(mx - ox, my - oy) > orr + 2.3 for (ox, oy, orr) in obstacles):
+            if all(math.hypot(mx - ox, my - oy) > orr + 2.0 for (ox, oy, orr) in obstacles):
                 markers.append((mid, float(mx), float(my))); mid += 1
 
     bodies = []
