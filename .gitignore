@@ -29,3 +29,6 @@ Thumbs.db
 ros2_ws/build/
 ros2_ws/install/
 ros2_ws/log/
+
+# PX4 message package — cloned separately for platform:=px4 (see docs/PX4_SIM.md)
+ros2_ws/src/px4_msgs/

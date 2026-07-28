@@ -24,6 +24,12 @@ def make(node, name='sim'):
     return Px4Platform(node) if name == 'px4' else SimPlatform(node)
 
 
+# A fourth method, send_vision(xy, yaw, cov), lets the navigator hand a scheduler-gated
+# landmark fix to the platform. On sim it is a no-op (the sim already knows truth); on PX4
+# it publishes the fix as external vision into EKF2 -- the "scheduler gates external vision
+# into a production estimator" architecture. Every adapter therefore defines all four.
+
+
 class SimPlatform:
     """Gazebo target: velocity -> /frugalnav/nav_cmd (planar_move), altitude/pose -> teleport."""
 
@@ -54,6 +60,9 @@ class SimPlatform:
     def go_to(self, x, y, z):
         self._teleport(x, y, z, block=True)
 
+    def send_vision(self, xy, yaw=0.0, cov=0.25):
+        pass                    # the sim already owns truth; nothing to feed
+
     def _teleport(self, x, y, z, block):
         if block and not self.tele.wait_for_service(timeout_sec=0.3):
             self.node.get_logger().warn('set_entity_state not ready; teleport skipped'); return
@@ -68,38 +77,47 @@ class SimPlatform:
 
 
 class Px4Platform:
-    """Real PX4 offboard target. Needs px4_msgs and a PX4 autopilot on uXRCE-DDS.
+    """Real/SITL PX4 offboard target. Needs px4_msgs and a PX4 autopilot on uXRCE-DDS.
 
-    Publishes an OffboardControlMode heartbeat (>2 Hz, required) plus a TrajectorySetpoint.
-    NOTE: arming and the switch into OFFBOARD mode are the operator's / a startup routine's
-    job (VehicleCommand); this adapter only streams setpoints. Frames: PX4 is NED, so world
-    ENU altitude z maps to setpoint z = -z, and the vertical velocity closes the gap to it.
+    A complete offboard bringup, not just a setpoint stream:
+      1. stream OffboardControlMode (>2 Hz, mandatory) + a TrajectorySetpoint,
+      2. once a second of setpoints has been streamed, command OFFBOARD mode and ARM
+         (PX4 rejects OFFBOARD unless setpoints are already flowing),
+      3. keep streaming; set_velocity/set_altitude/go_to update the live setpoint.
+    Frames: PX4 is NED. World-ENU altitude z -> setpoint z = -z; ENU (vx,vy) map to NED
+    (vy, vx) [east,north] so a world +x command drives PX4 north-east consistently with
+    the sim. send_vision() feeds a scheduler-gated fix to EKF2 as external vision.
     """
 
     def __init__(self, node):
-        from px4_msgs.msg import OffboardControlMode, TrajectorySetpoint, VehicleLocalPosition
+        from px4_msgs.msg import (OffboardControlMode, TrajectorySetpoint, VehicleCommand,
+                                  VehicleLocalPosition, VehicleStatus, VehicleOdometry)
         from rclpy.qos import QoSProfile, ReliabilityPolicy, DurabilityPolicy, HistoryPolicy
         qos = QoSProfile(reliability=ReliabilityPolicy.BEST_EFFORT,
                          durability=DurabilityPolicy.TRANSIENT_LOCAL,
                          history=HistoryPolicy.KEEP_LAST, depth=1)
         self.node = node
-        self._Off, self._Sp = OffboardControlMode, TrajectorySetpoint
+        self._Off, self._Sp, self._Cmd, self._Odo = (OffboardControlMode, TrajectorySetpoint,
+                                                      VehicleCommand, VehicleOdometry)
         self.vx = self.vy = 0.0
         self.target_z = -5.0            # NED down-negative: 5 m altitude
         self.cur_z = -5.0
-        self.goal = None               # (x, y, z) position setpoint for go_to
+        self.goal = None               # (n, e, d) position setpoint for go_to
+        self.ticks = 0; self.engaged = False; self.nav_state = None
         self.off_pub = node.create_publisher(OffboardControlMode, '/fmu/in/offboard_control_mode', qos)
         self.sp_pub = node.create_publisher(TrajectorySetpoint, '/fmu/in/trajectory_setpoint', qos)
-        node.create_subscription(VehicleLocalPosition, '/fmu/out/vehicle_local_position',
-                                 self._on_pos, qos)
+        self.cmd_pub = node.create_publisher(VehicleCommand, '/fmu/in/vehicle_command', qos)
+        self.vis_pub = node.create_publisher(VehicleOdometry, '/fmu/in/vehicle_visual_odometry', qos)
+        node.create_subscription(VehicleLocalPosition, '/fmu/out/vehicle_local_position', self._on_pos, qos)
+        node.create_subscription(VehicleStatus, '/fmu/out/vehicle_status', self._on_status, qos)
         node.create_timer(0.05, self._stream)   # 20 Hz offboard stream
+        node.get_logger().info('Px4Platform: streaming offboard setpoints; will arm + engage OFFBOARD')
 
-    def _on_pos(self, m):
-        self.cur_z = m.z
+    def _on_pos(self, m): self.cur_z = m.z
+    def _on_status(self, m): self.nav_state = m.nav_state
+    def _stamp(self): return int(self.node.get_clock().now().nanoseconds / 1000)
 
-    def _stamp(self):
-        return int(self.node.get_clock().now().nanoseconds / 1000)
-
+    # -- navigator-facing interface (world ENU) ----------------------------
     def set_velocity(self, vx, vy):
         self.vx, self.vy, self.goal = float(vx), float(vy), None
 
@@ -107,9 +125,28 @@ class Px4Platform:
         self.target_z = -float(z)
 
     def go_to(self, x, y, z):
-        self.goal = (float(x), float(y), -float(z))    # fly to it (real drones don't teleport)
+        self.goal = (float(y), float(x), -float(z))   # ENU (x,y,z) -> NED (north=y, east=x, down=-z)
+
+    def send_vision(self, xy, yaw=0.0, cov=0.25):
+        """Publish a scheduler-gated landmark fix as external vision for EKF2 (NED)."""
+        o = self._Odo(); o.timestamp = o.timestamp_sample = self._stamp()
+        o.pose_frame = self._Odo.POSE_FRAME_NED
+        o.position = [float(xy[1]), float(xy[0]), self.cur_z]      # ENU->NED north,east,down
+        o.q = [float('nan')] * 4
+        o.position_variance = [float(cov)] * 3
+        o.velocity_variance = [float('nan')] * 3
+        self.vis_pub.publish(o)
+
+    # -- offboard bringup + setpoint stream --------------------------------
+    def _cmd(self, command, p1=0.0, p2=0.0):
+        c = self._Cmd(); c.timestamp = self._stamp()
+        c.command = command; c.param1 = float(p1); c.param2 = float(p2)
+        c.target_system = 1; c.target_component = 1
+        c.source_system = 1; c.source_component = 1; c.from_external = True
+        self.cmd_pub.publish(c)
 
     def _stream(self):
+        self.ticks += 1
         off = self._Off(); off.position = self.goal is not None; off.velocity = self.goal is None
         off.timestamp = self._stamp(); self.off_pub.publish(off)
         sp = self._Sp(); sp.timestamp = off.timestamp
@@ -118,7 +155,13 @@ class Px4Platform:
             sp.position = [self.goal[0], self.goal[1], self.goal[2]]
             sp.velocity = [nan, nan, nan]
         else:
-            vz = float(np.clip(0.6 * (self.target_z - self.cur_z), -1.0, 1.0))  # close altitude gap
+            vz = float(np.clip(0.6 * (self.target_z - self.cur_z), -1.0, 1.0))   # close altitude gap
             sp.position = [nan, nan, nan]
-            sp.velocity = [self.vx, self.vy, vz]
+            sp.velocity = [self.vy, self.vx, vz]        # NED: north=vy(ENU), east=vx(ENU)
         self.sp_pub.publish(sp)
+        # after ~1 s of streamed setpoints, engage OFFBOARD (custom main mode 6) and arm
+        if not self.engaged and self.ticks == 20:
+            self._cmd(self._Cmd.VEHICLE_CMD_DO_SET_MODE, 1.0, 6.0)
+            self._cmd(self._Cmd.VEHICLE_CMD_COMPONENT_ARM_DISARM, 1.0)
+            self.engaged = True
+            self.node.get_logger().info('Px4Platform: sent OFFBOARD + ARM')

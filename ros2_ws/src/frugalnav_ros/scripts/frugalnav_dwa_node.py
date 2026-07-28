@@ -277,6 +277,7 @@ class DwaNav(Node):
         if (trig or confirming) and fix_fresh:
             self.fusion.update(LandmarkFix(xy=self.fix, yaw=0.0, covariance=np.eye(2) * 0.25,
                                            marker_id=0), gain=None)     # optimal blend, stays consistent
+            self.platform.send_vision(self.fix, cov=0.25)              # on px4 -> EKF2 external vision
             self.sched.reset_after_fix()
             self.fix_used_t = self.fix_t; self.fixes += 1
             self.corr.append(self.fusion.state.xy.copy())
