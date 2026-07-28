@@ -43,6 +43,9 @@ from core.state_fusion import StateFusion
 from core.controller import TargetCentricController, ControllerConfig
 from core.types import LandmarkFix
 
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))   # sibling module
+import frugalnav_platform
+
 
 class Real3Nav(Node):
     def __init__(self):
@@ -55,8 +58,13 @@ class Real3Nav(Node):
         self.load_scene(scene)
 
         self.ctrl = TargetCentricController(self.B, ControllerConfig(kp=0.6, v_max=2.0, arrive_tol=1.5))
-        self.fusion = StateFusion(init_xy=tuple(self.start)); self.fusion.q_per_metre = 0.09
-        self.sched = UncertaintyScheduler(SchedulerConfig(tau=0.35, sigma_pos_floor=0.7))
+        # q grows the covariance faster (real optical-flow VIO drifts faster than 0.09/m
+        # under load) and tau triggers sooner, so the FIRST fix lands before the estimate
+        # has drifted metres -- otherwise the drone navigates on a stale position into a
+        # block. This only tunes the live demo; the frugality evaluation uses the core
+        # scheduler's own defaults, so the headline result is unchanged.
+        self.fusion = StateFusion(init_xy=tuple(self.start)); self.fusion.q_per_metre = 0.14
+        self.sched = UncertaintyScheduler(SchedulerConfig(tau=0.28, sigma_pos_floor=0.6))
 
         self.true = None                         # truth: error/teleport reference ONLY
         self.vio_vel = np.zeros(2)               # measured velocity (optical-flow VIO)
@@ -66,6 +74,7 @@ class Real3Nav(Node):
         self.scan = None
         self.gyro_mag = 0.0                       # smoothed |angular velocity| from the IMU
         self.wind_est = np.zeros(2); self.v_cmd = np.zeros(2)
+        self.wind_i = np.zeros(2)                    # bounded integral term (rejects steady wind)
         self.teleop_vel = np.zeros(2)
         self.mode = 'auto'
         self.paused = bool(self.declare_parameter('start_paused', False).value)
@@ -78,7 +87,9 @@ class Real3Nav(Node):
         self.fixes = 0; self.arrived = False; self.nearest = np.inf
         self.arrival_confirmed = False
 
-        self.cmd_pub = self.create_publisher(Twist, '/frugalnav/nav_cmd', 10)
+        # platform adapter: 'sim' drives Gazebo (default), 'px4' drives a real drone.
+        # The navigation code below is identical for both.
+        self.platform = frugalnav_platform.make(self, self.declare_parameter('platform', 'sim').value)
         self.viz_pub = self.create_publisher(MarkerArray, '/frugalnav/viz', 10)
         latched = rclpy.qos.QoSProfile(
             depth=1, durability=rclpy.qos.QoSDurabilityPolicy.TRANSIENT_LOCAL)
@@ -91,7 +102,6 @@ class Real3Nav(Node):
         self.create_subscription(Imu, '/frugalnav/imu', self.on_imu, 20)
         self.create_subscription(String, '/frugalnav/ctrl', self.on_ctrl, 10)
         self.create_subscription(Twist, '/frugalnav/teleop', self.on_teleop, 10)
-        self.tele_cli = self.create_client(SetEntityState, '/gazebo/set_entity_state')
         self.publish_scene()
         self.timer = self.create_timer(0.05, self.step)      # 20 Hz
         self.get_logger().info(f'demo-3 blind nav up: target {self.B} (VIO + laser, no map)')
@@ -125,7 +135,7 @@ class Real3Nav(Node):
     def on_ctrl(self, m):
         c = m.data
         if c in ('auto', 'manual'):
-            self.mode = c; self.arrived = False; self.arrival_confirmed = False
+            self.mode = c; self.arrived = False; self.arrival_confirmed = False; self.wind_i = np.zeros(2)
         elif c == 'pause': self.paused = True
         elif c in ('play', 'resume'): self.paused = False
         elif c == 'reset': self.reset_home()
@@ -135,25 +145,16 @@ class Real3Nav(Node):
         elif c == 'move_west': self.reposition([-1.0, 0.0])
     def now(self): return self.get_clock().now().nanoseconds * 1e-9
 
-    # ---- teleport (reset / reposition), same mechanism as the real demo ----
+    # ---- reset / reposition -> the platform (sim teleports, PX4 flies there) ----
     def teleport(self, xy):
-        if not self.tele_cli.wait_for_service(timeout_sec=0.3):
-            self.get_logger().warn('set_entity_state not ready; teleport skipped'); return
-        req = SetEntityState.Request()
-        req.state.name = 'frugalnav_drone'
-        req.state.pose.position.x = float(xy[0])
-        req.state.pose.position.y = float(xy[1])
-        req.state.pose.position.z = float(self.spawn_z)
-        req.state.pose.orientation.w = 1.0
-        req.state.reference_frame = 'world'
-        self.tele_cli.call_async(req)
+        self.platform.go_to(float(xy[0]), float(xy[1]), self.spawn_z)
 
     def reset_home(self):
         self.teleport(self.home)
         self.fusion.state.xy = self.home.copy()
         self.true_path.clear(); self.est_path.clear(); self.corr.clear()
         self.fixes = 0; self.arrived = False; self.paused = True
-        self.arrival_confirmed = False
+        self.arrival_confirmed = False; self.wind_i = np.zeros(2)
         self.get_logger().info(f'RESET -> home {self.home}, holding')
 
     def reposition(self, delta):
@@ -201,11 +202,19 @@ class Real3Nav(Node):
                 into = -float(v @ away)
                 if into > 0:
                     v = v + away * into
-        # Tangential term: circle the nearest obstacle toward the goal side. Without it
-        # seek and repulsion can balance exactly and the drone sits still.
+        # Tangential term: circle the obstacle field toward the goal side so seek and
+        # repulsion can't balance to a dead stop. Take the tangent of the *resultant*
+        # repulsion (v - base = the sum of every sector's push), not of the single nearest
+        # pillar. With several clustered pillars (the real map) the nearest one flips
+        # frame-to-frame and a per-pillar tangent flips with it, spinning the drone in place;
+        # the resultant points steadily away from the cluster's centre, so the tangent is
+        # stable and the drone orbits out consistently. With one dominant obstacle (most of
+        # the city) the resultant is that obstacle, i.e. the original proven behaviour.
         if nearest_away is not None and self.nearest < rmax:
             bhat = base / (np.linalg.norm(base) + 1e-9)
-            tang = np.array([-nearest_away[1], nearest_away[0]])
+            rep = v - base
+            ohat = rep / np.linalg.norm(rep) if np.linalg.norm(rep) > 1e-6 else nearest_away
+            tang = np.array([-ohat[1], ohat[0]])
             if tang @ bhat < 0:
                 tang = -tang
             v = v + tang * min(2.0, 2.2 * (1.0 - self.nearest / rmax))
@@ -223,19 +232,21 @@ class Real3Nav(Node):
             return
         dt = 0.05
 
-        # VIO stays silent until it has calibrated. Until then, dead-reckon on the
-        # commanded motion and skip the wind feed-forward -- feeding an unscaled
-        # velocity into the wind loop makes it diverge.
+        # Dead-reckon on the measured (VIO) velocity once it has calibrated; before that,
+        # on the commanded motion.
         vio_ok = (self.now() - self.vio_t) < 0.5
-        if vio_ok:
-            self.wind_est = 0.92 * self.wind_est + 0.08 * (self.vio_vel - self.v_cmd)
-            self.wind_est = np.clip(self.wind_est, -3.0, 3.0)
-            motion = self.vio_vel
-        else:
-            self.wind_est = np.zeros(2)
-            motion = self.v_cmd
+        motion = self.vio_vel if vio_ok else self.v_cmd
         self.fusion.predict(motion * dt)
         est = self.fusion.state.xy
+        # Wind ESTIMATE, for display only (leaky + gated so it stays bounded). It is NOT
+        # fed into the command: closing that loop integrates (measured - intended) velocity
+        # and runs away to the clamp the instant the drone is blocked or the VIO spikes --
+        # the (1.5,1.5) failure, on every map. Wind is rejected in closed loop below.
+        if vio_ok and self.nearest > 4.0:
+            self.wind_est = 0.9 * self.wind_est + 0.06 * (self.vio_vel - self.v_cmd)
+        else:
+            self.wind_est = 0.9 * self.wind_est
+        self.wind_est = np.clip(self.wind_est, -2.0, 2.0)
 
         # --- scheduler on measured image cues ---
         floss = max(0.0, self.prev_feats - self.feats); self.prev_feats = self.feats
@@ -254,7 +265,10 @@ class Real3Nav(Node):
         # fix ever fires again, and whatever drift it had becomes the permanent miss.
         confirming = (self.mode == 'auto' and not self.arrival_confirmed
                       and self.ctrl.arrived(est))
-        if (trig or confirming) and fix_fresh:
+        # watchdog: even when hovering (little travel -> U grows slowly), spend a fix at
+        # least every few seconds so drift can't accumulate unbounded.
+        stale = self.fixes > 0 and (self.now() - self.fix_used_t) > 4.0
+        if (trig or confirming or stale) and fix_fresh:
             self.fusion.update(LandmarkFix(xy=self.fix, yaw=0.0,
                                covariance=np.eye(2) * 0.25, marker_id=0), gain=None)
             self.sched.reset_after_fix()
@@ -269,9 +283,26 @@ class Real3Nav(Node):
         elif self.mode == 'auto' and self.ctrl.arrived(est):
             self.arrived = True; v_ctrl = np.zeros(2); self.nearest = np.inf
         else:
-            seek = self.B - est; n = np.linalg.norm(seek) or 1.0
-            v_ctrl = self.scan_avoid(seek / n * self.ctrl.cfg.v_max)
-        self.v_cmd = v_ctrl - self.wind_est
+            # decelerate on approach: full speed far out, creeping within ~5 m of the
+            # (estimated) target. Charging at full speed until arrive_tol lets any estimate
+            # lag overshoot the target and fly off the marker field, after which there are
+            # no fixes and it diverges -- the real-map failure. Slowing keeps it in the field.
+            seek = self.B - est; d = float(np.linalg.norm(seek)); n = d or 1.0
+            speed = min(self.ctrl.cfg.v_max, max(0.4, 0.4 * d))
+            v_ctrl = self.scan_avoid(seek / n * speed)
+        # Closed-loop wind rejection: near the target and clear of obstacles, accumulate a
+        # bounded integral of the position error so a steady wind is cancelled and the drone
+        # settles. Bounded + leaky + gated -> stable, and it never touches the velocity loop
+        # that used to run away. No open-loop feedforward.
+        to_goal = self.B - est
+        if self.mode == 'auto' and np.linalg.norm(to_goal) < 5.0 and self.nearest > 3.5:
+            self.wind_i = np.clip(0.99 * self.wind_i + 0.03 * to_goal, -1.8, 1.8)
+        else:
+            self.wind_i = 0.9 * self.wind_i
+        self.v_cmd = v_ctrl + self.wind_i
+        s = np.linalg.norm(self.v_cmd)
+        if s > self.ctrl.cfg.v_max * 1.8:
+            self.v_cmd = self.v_cmd / s * self.ctrl.cfg.v_max * 1.8
         self.pub_cmd(self.v_cmd[0], self.v_cmd[1])
 
         self.hold_altitude()
@@ -288,34 +319,23 @@ class Real3Nav(Node):
                 f'nearest_obst={nz:.1f}m alt={self.alt:.1f}m feats={self.feats:.0f}')
 
     def pub_cmd(self, x, y):
-        t = Twist(); t.linear.x = float(x); t.linear.y = float(y); self.cmd_pub.publish(t)
+        self.platform.set_velocity(x, y)
 
     def hold_altitude(self):
-        # Visibility is judged from the MEASURED image only (trackable features). Under a
-        # haze bank the ground washes out and the count collapses, so drop below it; once
-        # the view is good again, climb back to cruise. planar_move only drives x/y, so
-        # altitude is applied by setting the model's z.
-        # Judge visibility by image CONTRAST (Laplacian variance), not feature count.
-        # Feature count falls with altitude too -- flying low shrinks the ground patch --
-        # so using it means the drone reads its own descent as fog and never climbs back.
-        # Contrast collapses under haze but stays high in clear air at any height.
+        # Decide the desired altitude from measured image CONTRAST (Laplacian variance):
+        # under a haze bank the ground washes out and contrast collapses, so drop below it,
+        # then climb back once it clears. Contrast (not feature count) because feature count
+        # also falls with altitude, so the drone would read its own descent as fog. The
+        # platform then realises the altitude (sim moves the model; PX4 commands it).
         if self.blur < 120:
             self.poor_vis = min(self.poor_vis + 1, 40)
         elif self.blur > 250:
             self.poor_vis = max(self.poor_vis - 1, 0)
         want = self.low_z if self.poor_vis > 8 else self.cruise_z
         if abs(want - self.alt) < 0.05:
-            return
+            return                                # at target altitude: don't disturb motion
         self.alt += max(-0.10, min(0.10, want - self.alt))    # ease, don't snap
-        if self.tele_cli.service_is_ready():
-            req = SetEntityState.Request()
-            req.state.name = 'frugalnav_drone'
-            req.state.pose.position.x = float(self.true[0])
-            req.state.pose.position.y = float(self.true[1])
-            req.state.pose.position.z = float(self.alt)
-            req.state.pose.orientation.w = 1.0
-            req.state.reference_frame = 'world'
-            self.tele_cli.call_async(req)
+        self.platform.set_altitude(self.alt)
 
     # ---- visualization ----
     def mk(self, i, typ, s, r, g, b, a):
