@@ -499,6 +499,123 @@ def build_metro():
     return len(buildings), len(towers) + len(clutter), len(markers)
 
 
+def build_canyon():
+    """Demo 3 'canyon': a rugged foothills gorge -- and unlike a city grid, the obstacles
+    are IN the path. Two irregular rock RIM WALLS frame a valley whose whole width is packed
+    with boulders, rock chunks and slim spires (rejection-sampled with a guaranteed gap, so
+    the reactive laser-avoider always has a thread through, but there is no clear avenue --
+    you weave the entire way). Raised mesas add relief; two haze banks drop the drone low;
+    distant hazy peaks ring the horizon. Dense ground ArUco runs the valley and past the
+    target so the drift-prone estimator gets constant fixes. Base ground is flat on purpose:
+    the drone flies a commanded altitude, so its challenge is what the horizontal laser hits,
+    not ground it would fly over -- this is the build that matches the navigator."""
+    rng = random.Random(53)
+    start, target = (72.0, 24.0), (6.0, 24.0)
+    hard = (39.0, 24.0, 12.0)
+
+    # --- rim walls: segmented, irregular, some segments jut INTO the valley ---
+    walls, round_obs = [], []
+    for wy, sgn in ((9.0, +1.0), (39.0, -1.0)):
+        x = 3.0
+        while x < 75:
+            L = rng.uniform(5.0, 9.0)
+            yy = wy + sgn * rng.uniform(0.0, 4.0)         # jut toward the centre
+            sy = rng.uniform(3.0, 5.0); h = rng.uniform(10.0, 18.0)
+            walls.append((x + L / 2, yy, L, sy, h))
+            round_obs.append((x + L / 2, yy, max(L, sy) * 0.5))
+            x += L + rng.uniform(0.4, 1.6)
+
+    # --- in-valley obstacle field, filling the WHOLE valley (no clear avenue) ---
+    # 5.0 m gap BETWEEN boulders (near the city's proven threadable spacing) but boulders
+    # may hug the rim walls (1.5 m margin), so the field packs the whole valley instead of
+    # only the centre. Mostly slim rocks + boulders with a few big formations.
+    CLEAR = 5.0
+    n_walls = len(round_obs)                              # first entries are rim walls
+    boulders = []                                         # (x, y, r, h)
+    for _ in range(15000):
+        x = rng.uniform(10, 68); y = rng.uniform(12.0, 36.0)
+        if math.hypot(x - start[0], y - start[1]) < 7 or math.hypot(x - target[0], y - target[1]) < 7:
+            continue
+        k = rng.random()
+        r = (rng.uniform(0.45, 0.85) if k < 0.50 else     # slim rocks / spires
+             rng.uniform(1.0, 1.7) if k < 0.82 else       # boulders
+             rng.uniform(2.1, 3.1))                        # big rock formations
+        if any(math.hypot(x - ox, y - oy) < r + orr + (1.5 if i < n_walls else CLEAR)
+               for i, (ox, oy, orr) in enumerate(round_obs)):
+            continue
+        h = rng.uniform(8.0, 12.0) if r < 0.9 else rng.uniform(5.0, 13.0)
+        boulders.append((x, y, r, h)); round_obs.append((x, y, r))
+
+    # --- raised mesas: flat-topped rock plateaus (relief + go-around) ---
+    mesas = []
+    for _ in range(600):
+        if len(mesas) >= 4:
+            break
+        x = rng.uniform(16, 60); y = rng.uniform(15, 33)
+        sx, sy = rng.uniform(7.0, 11.0), rng.uniform(7.0, 11.0); h = rng.uniform(3.0, 4.2)
+        if (math.hypot(x - start[0], y - start[1]) < 10 or math.hypot(x - target[0], y - target[1]) < 10):
+            continue
+        if any(math.hypot(x - ox, y - oy) < max(sx, sy) * 0.5 + orr + CLEAR for (ox, oy, orr) in round_obs):
+            continue
+        mesas.append((x, y, sx, sy, h)); round_obs.append((x, y, max(sx, sy) * 0.5))
+
+    hazes = [(50.0, 24.0, 13.0, 34.0, 3.6), (24.0, 24.0, 13.0, 34.0, 3.6)]
+
+    # distant hazy peaks ringing the arena (visual backdrop; far outside the flight area)
+    mountains = []
+    for ang in range(0, 360, 24):
+        a = math.radians(ang)
+        mx = 39.0 + 98.0 * math.cos(a); my = 24.0 + 82.0 * math.sin(a)
+        mountains.append((mx, my, rng.uniform(20, 34), rng.uniform(20, 34), rng.uniform(22, 44)))
+
+    # dense ground ArUco through the valley and past the target (constant fixes)
+    markers, mid = [], 0
+    for mx in range(4, 73, 4):
+        for my in range(14, 35, 5):
+            if mid >= 96:
+                break
+            if any(math.hypot(mx - ox, my - oy) < orr + 1.5 for (ox, oy, orr) in round_obs):
+                continue
+            markers.append((mid, float(mx), float(my))); mid += 1
+
+    bodies = []
+    for i, (x, y, sx, sy, h) in enumerate(mountains):
+        bodies.append(box(f"mtn{i}", x, y, sx, sy, h, (0.44, 0.47, 0.54, 1)))
+    for i, (x, y, r, h) in enumerate(boulders):
+        g = rng.uniform(0.34, 0.5)
+        bodies.append(cyl(f"rock{i}", x, y, r, h, (g, g * 0.85, g * 0.64, 1)))
+    for i, (x, y, sx, sy, h) in enumerate(walls):
+        s = rng.uniform(0.30, 0.42)
+        bodies.append(box(f"wall{i}", x, y, sx, sy, h, (s, s * 0.82, s * 0.6, 1)))
+    for i, (x, y, sx, sy, h) in enumerate(mesas):
+        bodies.append(box(f"mesa{i}", x, y, sx, sy, h, (0.55, 0.45, 0.32, 1)))
+    for i, (hx, hy, hsx, hsy, hz) in enumerate(hazes):
+        bodies.append(haze(f"haze{i}", hx, hy, hsx, hsy, hz))
+    bodies.append(disc("hard_patch", hard[0], hard[1], hard[2], (0.96, 0.62, 0.04, 0.14), 0.03))
+    for (i, x, y) in markers:
+        bodies.append(aruco_tile(f"aruco{i}", x, y, i))
+    bodies.append(cyl("target_B", *target, 0.6, 3.0, (0.98, 0.75, 0.14, 1), z=1.5))
+    bodies.append(cyl("start_pad", *start, 1.0, 0.04, (0.20, 0.83, 0.44, 0.85), z=0.02))
+
+    with open(os.path.join(PKG, "worlds", "canyon.world"), "w") as f:
+        f.write(world("canyon", bodies, (0.50, 0.42, 0.30), bg="0.66 0.70 0.76 1", fog_density=0.05))
+
+    lines = [f"target {target[0]:.3f} {target[1]:.3f}",
+             f"start {start[0]:.3f} {start[1]:.3f}",
+             f"hard {hard[0]:.3f} {hard[1]:.3f} {hard[2]:.3f}"]
+    for (x, y, sx, sy, h) in walls + mesas:
+        lines.append(f"building {x:.3f} {y:.3f} {sx:.3f} {sy:.3f} {h:.3f}")
+    for (x, y, sx, sy, h) in walls + mesas:
+        lines.append(f"pillar {x:.3f} {y:.3f} {max(sx, sy) * 0.5:.3f}")
+    for (x, y, r, h) in boulders:
+        lines.append(f"pillar {x:.3f} {y:.3f} {r:.3f}")
+    for (i, x, y) in markers:
+        lines.append(f"amarker {i} {x:.3f} {y:.3f}")
+    with open(os.path.join(PKG, "config", "canyon_scene.txt"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+    return len(walls) + len(mesas), len(boulders), len(markers)
+
+
 if __name__ == "__main__":
     import sys
     os.makedirs(os.path.join(PKG, "config"), exist_ok=True)
@@ -509,10 +626,12 @@ if __name__ == "__main__":
         rdo, rdm = build_real_dense()
         cb, ct, cm = build_city()
         mb, mt, mm = build_metro()
+        yb, yt, ym = build_canyon()
         print(f"real:       {ro} obstacles, {rm} ArUco markers (ids 0..{rm-1})")
         print(f"real_dense: {rdo} obstacles, {rdm} ArUco markers (ids 0..{rdm-1})")
         print(f"city:       {cb} buildings ({ct} tall enough to be obstacles), {cm} markers")
         print(f"metro:      {mb} buildings ({mt} obstacles), {mm} markers")
+        print(f"canyon:     {yb} walls/mesas, {yt} boulders in-path, {ym} markers")
     else:
         do, dm = build_demo()
         co, cm = build_canopy()
