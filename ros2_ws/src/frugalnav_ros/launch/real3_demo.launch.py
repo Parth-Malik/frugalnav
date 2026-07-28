@@ -54,8 +54,11 @@ def _setup(context, *args, **kwargs):
     vio = Node(package='frugalnav_ros', executable='frugalnav_vio.py',
                name='frugalnav_vio', output='screen', parameters=[SIM])
     platform = LaunchConfiguration('platform')          # 'sim' (Gazebo) or 'px4' (real drone)
-    nav = Node(package='frugalnav_ros', executable='frugalnav_real3_node.py',
-               name='frugalnav_real3_node', output='screen',
+    # nav:=dwa -> the stronger DWA + consistent-EKF navigator (default); nav:=classic -> baseline
+    navexe = ('frugalnav_dwa_node.py' if LaunchConfiguration('nav').perform(context) == 'dwa'
+              else 'frugalnav_real3_node.py')
+    nav = Node(package='frugalnav_ros', executable=navexe,
+               name=navexe.replace('.py', ''), output='screen',
                parameters=[{'scene_file': scene, 'start_paused': sp, 'platform': platform}, SIM])
     front = Node(package='frugalnav_ros', executable='frugalnav_front_view.py',
                  name='frugalnav_front_view', output='screen', parameters=[SIM])
@@ -84,6 +87,8 @@ def generate_launch_description():
                               description='hold the drone until mission control presses PLAY'),
         DeclareLaunchArgument('platform', default_value='sim',
                               description='sim (Gazebo) | px4 (real drone over offboard)'),
+        DeclareLaunchArgument('nav', default_value='dwa',
+                              description='dwa (stronger DWA + consistent EKF) | classic (baseline)'),
         SetEnvironmentVariable('GAZEBO_RESOURCE_PATH',
                                media + ':/usr/share/gazebo-11:' + res),
         OpaqueFunction(function=_setup),
