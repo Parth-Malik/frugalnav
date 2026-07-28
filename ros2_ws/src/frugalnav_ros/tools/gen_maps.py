@@ -393,6 +393,112 @@ def build_city():
     return len(buildings), len(towers) + len(clutter), len(markers)
 
 
+def build_metro():
+    """Demo 3 'metro': a big, dense, real-life-like downtown. A varied skyline (tall towers,
+    mid-rises, low blocks), heavy street clutter down the flight avenue, and THREE low haze
+    banks so the drone drops and climbs three times on the way in. Dense ArUco tiles run the
+    whole corridor and THROUGH the target, so a drift-prone landmark navigator gets constant
+    fixes -- the map is hard on obstacles, not on localisation."""
+    rng = random.Random(37)
+    start, target = (68.0, 26.0), (6.0, 26.0)
+    hard = (37.0, 26.0, 11.0)
+    FLIGHT_Z = 5.0
+
+    # skyline grid: every third block is a tall tower (a real obstacle), the rest are
+    # mid-rises or low blocks (overflown -- there for density + camera texture).
+    gx = list(range(6, 70, 7))
+    gy = list(range(4, 50, 7))
+    buildings, towers = [], []
+    for i, bx in enumerate(gx):
+        for j, by in enumerate(gy):
+            x = bx + rng.uniform(-0.6, 0.6)
+            y = by + rng.uniform(-0.6, 0.6)
+            if (math.hypot(x - start[0], y - start[1]) < 8 or
+                    math.hypot(x - target[0], y - target[1]) < 8):
+                continue
+            if abs(y - start[1]) < 9:            # keep the flight avenue clear of buildings
+                continue
+            kind = (i + j) % 3
+            sx, sy = rng.uniform(4.2, 5.2), rng.uniform(4.2, 5.2)
+            h = (rng.uniform(16.0, 32.0) if kind == 0 else       # tower
+                 rng.uniform(8.0, 13.0) if kind == 1 else        # mid-rise
+                 rng.uniform(2.0, 4.2))                          # low block
+            buildings.append((x, y, sx, sy, h))
+            if h > FLIGHT_Z:
+                towers.append((x, y, sx, sy, h))
+
+    # street clutter across the avenue; rejection sampling keeps a guaranteed gap between
+    # every pair so the reactive avoider always has a way through.
+    CLEAR_GAP = 6.6
+    round_obs = [(x, y, max(sx, sy) * 0.5) for (x, y, sx, sy, h) in towers]
+    clutter = []
+    for _ in range(5000):
+        x = rng.uniform(9, 65)
+        y = start[1] + rng.uniform(-8.5, 8.5)
+        if (math.hypot(x - start[0], y - start[1]) < 6 or
+                math.hypot(x - target[0], y - target[1]) < 6):
+            continue
+        kind = rng.random()
+        r = (rng.uniform(0.45, 0.8) if kind < 0.5 else           # slim masts
+             rng.uniform(1.0, 1.6) if kind < 0.82 else           # mid pillars
+             rng.uniform(2.0, 3.0))                              # fat blocks
+        if any(math.hypot(x - ox, y - oy) < r + orr + CLEAR_GAP for (ox, oy, orr) in round_obs):
+            continue
+        if any(abs(x - bx) < sx / 2 + r + 1.5 and abs(y - by) < sy / 2 + r + 1.5
+               for (bx, by, sx, sy, h) in buildings):
+            continue
+        h = rng.uniform(9.0, 20.0)
+        clutter.append((x, y, r, h)); round_obs.append((x, y, r))
+
+    # THREE low haze banks across the corridor -> three descend/climb cycles.
+    hazes = [(54.0, 26.0, 12.0, 30.0, 3.6), (37.0, 26.0, 12.0, 30.0, 3.6),
+             (20.0, 26.0, 12.0, 30.0, 3.6)]
+
+    # dense ArUco tiles down the flight corridor (y band around 26), running from the start
+    # through to the target so fixes never vanish. Corridor-focused keeps us under 100 ids.
+    markers, mid = [], 0
+    for mx in range(4, 70, 4):
+        for my in range(18, 35, 4):
+            if mid >= 96:
+                break
+            if any(math.hypot(mx - ox, my - oy) < orr + 1.6 for (ox, oy, orr) in round_obs):
+                continue
+            markers.append((mid, float(mx), float(my))); mid += 1
+
+    bodies = []
+    for i, (x, y, r, h) in enumerate(clutter):
+        g = rng.uniform(0.30, 0.44)
+        bodies.append(cyl(f"mast{i}", x, y, r, h, (g, g + 0.01, g + 0.05, 1)))
+    for i, (hx, hy, hsx, hsy, hz) in enumerate(hazes):
+        bodies.append(haze(f"haze{i}", hx, hy, hsx, hsy, hz))
+    for i, (x, y, sx, sy, h) in enumerate(buildings):
+        shade = rng.uniform(0.24, 0.46)
+        bodies.append(box(f"bldg{i}", x, y, sx, sy, h, (shade, shade + 0.02, shade + 0.07, 1)))
+    bodies.append(disc("hard_patch", hard[0], hard[1], hard[2], (0.96, 0.62, 0.04, 0.16), 0.03))
+    for (i, x, y) in markers:
+        bodies.append(aruco_tile(f"aruco{i}", x, y, i))
+    bodies.append(cyl("target_B", *target, 0.6, 3.0, (0.98, 0.75, 0.14, 1), z=1.5))
+    bodies.append(cyl("start_pad", *start, 1.0, 0.04, (0.20, 0.83, 0.44, 0.85), z=0.02))
+
+    with open(os.path.join(PKG, "worlds", "metro.world"), "w") as f:
+        f.write(world("metro", bodies, (0.16, 0.16, 0.18), bg="0.55 0.58 0.64 1", fog_density=0.05))
+
+    lines = [f"target {target[0]:.3f} {target[1]:.3f}",
+             f"start {start[0]:.3f} {start[1]:.3f}",
+             f"hard {hard[0]:.3f} {hard[1]:.3f} {hard[2]:.3f}"]
+    for (x, y, sx, sy, h) in towers:
+        lines.append(f"building {x:.3f} {y:.3f} {sx:.3f} {sy:.3f} {h:.3f}")
+    for (x, y, sx, sy, h) in towers:
+        lines.append(f"pillar {x:.3f} {y:.3f} {max(sx, sy) * 0.5:.3f}")
+    for (x, y, r, h) in clutter:
+        lines.append(f"pillar {x:.3f} {y:.3f} {r:.3f}")
+    for (i, x, y) in markers:
+        lines.append(f"amarker {i} {x:.3f} {y:.3f}")
+    with open(os.path.join(PKG, "config", "metro_scene.txt"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+    return len(buildings), len(towers) + len(clutter), len(markers)
+
+
 if __name__ == "__main__":
     import sys
     os.makedirs(os.path.join(PKG, "config"), exist_ok=True)
@@ -402,9 +508,11 @@ if __name__ == "__main__":
         ro, rm = build_real()
         rdo, rdm = build_real_dense()
         cb, ct, cm = build_city()
+        mb, mt, mm = build_metro()
         print(f"real:       {ro} obstacles, {rm} ArUco markers (ids 0..{rm-1})")
         print(f"real_dense: {rdo} obstacles, {rdm} ArUco markers (ids 0..{rdm-1})")
         print(f"city:       {cb} buildings ({ct} tall enough to be obstacles), {cm} markers")
+        print(f"metro:      {mb} buildings ({mt} obstacles), {mm} markers")
     else:
         do, dm = build_demo()
         co, cm = build_canopy()
