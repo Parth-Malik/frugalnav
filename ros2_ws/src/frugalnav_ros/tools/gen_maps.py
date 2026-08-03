@@ -63,6 +63,44 @@ def disc(name, x, y, r, rgba, z):
             f'<material><ambient>{c}</ambient><diffuse>{c}</diffuse></material></visual></link></model>')
 
 
+def crag(name, cx, cy, r, h, rgba, seed=0, nverts=None):
+    """A jagged rock: an irregular polygon footprint extruded up, not a smooth cylinder.
+    Random radii around the centre give a rugged silhouette that the laser scans for real,
+    so obstacles look like rocks/rubble instead of pipes. Same idea terraforge uses to
+    extrude real building outlines, done procedurally so there is no geo toolchain to install."""
+    rng = random.Random(seed)
+    n = nverts or rng.randint(6, 9)
+    pts = []
+    for k in range(n):
+        ang = 2.0 * math.pi * k / n + rng.uniform(-0.16, 0.16)
+        rad = r * rng.uniform(0.60, 1.34)
+        pts.append(f"<point>{rad * math.cos(ang):.3f} {rad * math.sin(ang):.3f}</point>")
+    geom = f"<polyline>{''.join(pts)}<height>{h:.2f}</height></polyline>"
+    c = " ".join(map(str, rgba))
+    return (f'    <model name="{name}"><static>true</static><pose>{cx:.3f} {cy:.3f} 0 0 0 {rng.uniform(0, 6.28):.3f}</pose>'
+            f'<link name="l"><collision name="c"><geometry>{geom}</geometry></collision>'
+            f'<visual name="v"><geometry>{geom}</geometry>'
+            f'<material><ambient>{c}</ambient><diffuse>{c}</diffuse></material></visual></link></model>')
+
+
+def lbuilding(name, cx, cy, sx, sy, h, rgba, seed=0):
+    """A building with a varied, rectilinear footprint (an L or notched block) instead of a
+    plain box, so a city reads as real buildings of different shapes rather than identical
+    cubes. Extruded from a polygon outline, the same way real map tools handle footprints."""
+    rng = random.Random(seed)
+    w, d = sx / 2.0, sy / 2.0
+    nx, ny = sx * rng.uniform(0.30, 0.52), sy * rng.uniform(0.30, 0.52)   # corner notch
+    pts = [(-w, -d), (w, -d), (w, d - ny), (w - nx, d - ny), (w - nx, d), (-w, d)]
+    poly = "".join(f"<point>{px:.3f} {py:.3f}</point>" for (px, py) in pts)
+    geom = f"<polyline>{poly}<height>{h:.2f}</height></polyline>"
+    yaw = rng.choice([0.0, 1.5708, 3.1416, 4.7124]) + rng.uniform(-0.08, 0.08)
+    c = " ".join(map(str, rgba))
+    return (f'    <model name="{name}"><static>true</static><pose>{cx:.3f} {cy:.3f} 0 0 0 {yaw:.3f}</pose>'
+            f'<link name="l"><collision name="c"><geometry>{geom}</geometry></collision>'
+            f'<visual name="v"><geometry>{geom}</geometry>'
+            f'<material><ambient>{c}</ambient><diffuse>{c}</diffuse></material></visual></link></model>')
+
+
 def world(name, bodies, ground_rgba, bg="0.62 0.66 0.72 1", fog_density=0.02):
     body = "\n".join(bodies)
     return f"""<?xml version="1.0" ?>
@@ -359,13 +397,14 @@ def build_city():
     bodies = []
     for i, (x, y, r, h) in enumerate(clutter):
         g = rng.uniform(0.30, 0.44)
-        bodies.append(cyl(f"mast{i}", x, y, r, h, (g, g + 0.01, g + 0.05, 1)))
+        bodies.append(crag(f"mast{i}", x, y, r, h, (g, g + 0.01, g + 0.05, 1), seed=2100 + i))
     for i, (hx, hy, hsx, hsy, hz) in enumerate(hazes):
         bodies.append(haze(f"haze{i}", hx, hy, hsx, hsy, hz))
     for i, (x, y, sx, sy, h) in enumerate(buildings):
         shade = rng.uniform(0.26, 0.46)
         rgba = (shade, shade + 0.02, shade + 0.06, 1)
-        bodies.append(box(f"bldg{i}", x, y, sx, sy, h, rgba))
+        bodies.append(lbuilding(f"bldg{i}", x, y, sx, sy, h, rgba, seed=3100 + i)
+                      if i % 2 else box(f"bldg{i}", x, y, sx, sy, h, rgba))
     bodies.append(disc("hard_patch", hard[0], hard[1], hard[2], (0.96, 0.62, 0.04, 0.16), 0.03))
     for (i, x, y) in markers:
         bodies.append(aruco_tile(f"aruco{i}", x, y, i))
@@ -468,12 +507,14 @@ def build_metro():
     bodies = []
     for i, (x, y, r, h) in enumerate(clutter):
         g = rng.uniform(0.30, 0.44)
-        bodies.append(cyl(f"mast{i}", x, y, r, h, (g, g + 0.01, g + 0.05, 1)))
+        bodies.append(crag(f"mast{i}", x, y, r, h, (g, g + 0.01, g + 0.05, 1), seed=2100 + i))
     for i, (hx, hy, hsx, hsy, hz) in enumerate(hazes):
         bodies.append(haze(f"haze{i}", hx, hy, hsx, hsy, hz))
     for i, (x, y, sx, sy, h) in enumerate(buildings):
         shade = rng.uniform(0.24, 0.46)
-        bodies.append(box(f"bldg{i}", x, y, sx, sy, h, (shade, shade + 0.02, shade + 0.07, 1)))
+        rgba = (shade, shade + 0.02, shade + 0.07, 1)
+        bodies.append(lbuilding(f"bldg{i}", x, y, sx, sy, h, rgba, seed=3300 + i)
+                      if i % 2 else box(f"bldg{i}", x, y, sx, sy, h, rgba))
     bodies.append(disc("hard_patch", hard[0], hard[1], hard[2], (0.96, 0.62, 0.04, 0.16), 0.03))
     for (i, x, y) in markers:
         bodies.append(aruco_tile(f"aruco{i}", x, y, i))
@@ -583,7 +624,7 @@ def build_canyon():
         bodies.append(box(f"mtn{i}", x, y, sx, sy, h, (0.44, 0.47, 0.54, 1)))
     for i, (x, y, r, h) in enumerate(boulders):
         g = rng.uniform(0.34, 0.5)
-        bodies.append(cyl(f"rock{i}", x, y, r, h, (g, g * 0.85, g * 0.64, 1)))
+        bodies.append(crag(f"rock{i}", x, y, r, h, (g, g * 0.85, g * 0.64, 1), seed=1000 + i))
     for i, (x, y, sx, sy, h) in enumerate(walls):
         s = rng.uniform(0.30, 0.42)
         bodies.append(box(f"wall{i}", x, y, sx, sy, h, (s, s * 0.82, s * 0.6, 1)))
