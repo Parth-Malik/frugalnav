@@ -101,6 +101,32 @@ def lbuilding(name, cx, cy, sx, sy, h, rgba, seed=0):
             f'<material><ambient>{c}</ambient><diffuse>{c}</diffuse></material></visual></link></model>')
 
 
+def _in_poly(x, y, poly):
+    """Ray cast point in polygon test for a list of [x, y] vertices."""
+    inside = False
+    n = len(poly); j = n - 1
+    for i in range(n):
+        xi, yi = poly[i]; xj, yj = poly[j]
+        if (yi > y) != (yj > y) and x < (xj - xi) * (y - yi) / ((yj - yi) or 1e-9) + xi:
+            inside = not inside
+        j = i
+    return inside
+
+
+def poly_building(name, pts, h, rgba):
+    """Extrude a real building footprint, a list of [x, y] world points, straight up.
+    Same polyline extrusion as terraforge, so the laser scans the true outline."""
+    cx = sum(p[0] for p in pts) / len(pts)
+    cy = sum(p[1] for p in pts) / len(pts)
+    poly = "".join(f"<point>{p[0] - cx:.3f} {p[1] - cy:.3f}</point>" for p in pts)
+    geom = f"<polyline>{poly}<height>{h:.2f}</height></polyline>"
+    c = " ".join(map(str, rgba))
+    return (f'    <model name="{name}"><static>true</static><pose>{cx:.3f} {cy:.3f} 0 0 0 0</pose>'
+            f'<link name="l"><collision name="c"><geometry>{geom}</geometry></collision>'
+            f'<visual name="v"><geometry>{geom}</geometry>'
+            f'<material><ambient>{c}</ambient><diffuse>{c}</diffuse></material></visual></link></model>')
+
+
 def world(name, bodies, ground_rgba, bg="0.62 0.66 0.72 1", fog_density=0.02):
     body = "\n".join(bodies)
     return f"""<?xml version="1.0" ?>
@@ -657,12 +683,93 @@ def build_canyon():
     return len(walls) + len(mesas), len(boulders), len(markers)
 
 
+def build_india():
+    """Demo 3 'india': a real Indian city block. The building footprints are real
+    OpenStreetMap outlines of Jaipur near Badi Chaupar, fetched by fetch_osm.py and
+    extruded here, so the drone flies a genuine street layout. ArUco tiles are scattered
+    on the open streets so it can localise. Ground is flat, which is what the drone needs."""
+    import json
+    p = os.path.join(HERE, "osm_city.json")
+    if not os.path.exists(p):
+        print("india: osm_city.json missing, run  py fetch_osm.py  first"); return 0, 0
+    data = json.load(open(p))
+    rng = random.Random(7)
+    HALF, SCALE = 185.0, 0.55                # crop a 370 m chunk of the city, then scale it
+    ref = []                                 # (pts, cx, cy, r, h) kept buildings, scaled
+    for b in data["buildings"]:
+        pts = b["pts"]
+        cx = sum(q[0] for q in pts) / len(pts); cy = sum(q[1] for q in pts) / len(pts)
+        if abs(cx) > HALF or abs(cy) > HALF:
+            continue
+        r = max(math.hypot(q[0] - cx, q[1] - cy) for q in pts)
+        if r > 60 or len(pts) > 60:          # drop malformed / oversized ways
+            continue
+        spts = [[q[0] * SCALE, q[1] * SCALE] for q in pts]
+        h = b["h"] or rng.uniform(9.0, 22.0)
+        ref.append((spts, cx * SCALE, cy * SCALE, r * SCALE, float(h)))
+
+    def clear(x, y, m=3.0):                   # point and 4 neighbours all outside buildings
+        for dx, dy in ((0, 0), (m, 0), (-m, 0), (0, m), (0, -m)):
+            for (pts, cx, cy, r, h) in ref:
+                if math.hypot(x + dx - cx, y + dy - cy) > r + 4:
+                    continue
+                if _in_poly(x + dx, y + dy, pts):
+                    return False
+        return True
+
+    start, target = (92.0, 0.0), (-92.0, 0.0)
+    # carve the spawn and landing pads clear of any building
+    ref = [b for b in ref if math.hypot(b[1] - start[0], b[2] - start[1]) > b[3] + 6
+                          and math.hypot(b[1] - target[0], b[2] - target[1]) > b[3] + 6]
+    hard = (0.0, 0.0, 16.0)
+
+    # ArUco tiles DENSE along the flight corridor (the open streets), so the drift-prone
+    # estimator gets constant fixes and never runs off. Fill the centre line first (every
+    # 4 m, including right at the spawn), then the flanking rows up to the 96 marker budget.
+    markers, mid = [], 0
+    for my in (0.0, 6.0, -6.0, 12.0, -12.0):
+        for mx in range(-96, 97, 4):
+            if mid >= 96:
+                break
+            if clear(float(mx), float(my), 2.0):
+                markers.append((mid, float(mx), float(my))); mid += 1
+        if mid >= 96:
+            break
+
+    bodies = []
+    for i, (pts, cx, cy, r, h) in enumerate(ref):
+        s = rng.uniform(0.32, 0.52)
+        bodies.append(poly_building(f"bldg{i}", pts, h, (s, s * 0.93, s * 0.82, 1)))
+    bodies.append(disc("hard_patch", hard[0], hard[1], hard[2], (0.96, 0.62, 0.04, 0.14), 0.03))
+    for (i, x, y) in markers:
+        bodies.append(aruco_tile(f"aruco{i}", x, y, i))
+    bodies.append(cyl("target_B", *target, 0.6, 3.0, (0.98, 0.75, 0.14, 1), z=1.5))
+    bodies.append(cyl("start_pad", *start, 1.0, 0.04, (0.20, 0.83, 0.44, 0.85), z=0.02))
+
+    with open(os.path.join(PKG, "worlds", "india.world"), "w") as f:
+        f.write(world("india", bodies, (0.46, 0.42, 0.34), bg="0.70 0.72 0.74 1", fog_density=0.03))
+
+    lines = [f"target {target[0]:.3f} {target[1]:.3f}",
+             f"start {start[0]:.3f} {start[1]:.3f}",
+             f"hard {hard[0]:.3f} {hard[1]:.3f} {hard[2]:.3f}"]
+    for (pts, cx, cy, r, h) in ref:
+        lines.append(f"pillar {cx:.3f} {cy:.3f} {r:.3f}")
+    for (i, x, y) in markers:
+        lines.append(f"amarker {i} {x:.3f} {y:.3f}")
+    with open(os.path.join(PKG, "config", "india_scene.txt"), "w") as f:
+        f.write("\n".join(lines) + "\n")
+    return len(ref), len(markers)
+
+
 if __name__ == "__main__":
     import sys
     os.makedirs(os.path.join(PKG, "config"), exist_ok=True)
     # `gen_maps.py real` rebuilds ONLY the real + real_dense maps, leaving the
     # sandbox demo/canopy worlds untouched (they are frozen per project constraint).
-    if len(sys.argv) > 1 and sys.argv[1] == "real":
+    if len(sys.argv) > 1 and sys.argv[1] == "india":
+        ib, im = build_india()
+        print(f"india:      {ib} real OSM buildings, {im} ArUco markers (ids 0..{im - 1})")
+    elif len(sys.argv) > 1 and sys.argv[1] == "real":
         ro, rm = build_real()
         rdo, rdm = build_real_dense()
         cb, ct, cm = build_city()
