@@ -24,6 +24,17 @@ Two-tier trigger (this structure is what makes it defensible in review):
                  covariance gating.
 Plus HYSTERESIS: after a fix we suppress re-triggering for a few ticks so we do not
 chatter while one correction settles.
+
+FrugalNav v2 (SchedulerConfig.v2(); TCOM study, FrugalNav-HF): v1 under-corrected in
+clean conditions (the 0.45-weighted sigma_pos term saturates at 2 m, so alone it can
+never exceed tau = 0.45) and, in haze, its observability floor bypassed the cooldown
+and fired on every frame. v2 therefore
+  * feeds sigma_pos as the uncertainty PREDICTED at the next mapped marker
+    (StateFusion.predicted_sigma) and normalises it against a metres budget, with
+    the hard floor at that budget: "fix now if I could not reach the next marker
+    inside my budget";
+  * makes the safety floors respect the cooldown, except an emergency override
+    when sigma_pos exceeds emergency_sigma (kept for real flight).
 """
 from dataclasses import dataclass, field
 
@@ -78,6 +89,20 @@ class SchedulerConfig:
     feature_floor: int = 20        # observability floor: force a fix if tracks < this
     refractory_ticks: int = 15     # suppress re-trigger for N ticks after a fix
     bounds: CueBounds = field(default_factory=CueBounds)
+    # --- FrugalNav v2 (defaults = v1 behaviour) -----------------------------
+    floors_respect_cooldown: bool = False   # v2: floors wait for the refractory window
+    emergency_sigma: float | None = None    # ...unless sigma_pos exceeds this (m)
+    lookahead: bool = False                 # v2: sigma_pos cue = predicted at next marker
+
+    @classmethod
+    def v2(cls, budget_m: float = 1.0, tau: float = 0.55, refractory_ticks: int = 20):
+        """FrugalNav v2 main setting (1.0 m budget, tau 0.55, 2 s cooldown at 10 Hz),
+        chosen on held-out flights as the cheapest setting no less accurate than a
+        5 s fixed timer. Blur bounds assume a sharpness cue on the 150..300 scale."""
+        return cls(tau=tau, sigma_pos_floor=budget_m, refractory_ticks=refractory_ticks,
+                   bounds=CueBounds(sigma_pos=(0.05, budget_m)),
+                   floors_respect_cooldown=True, emergency_sigma=2.0 * budget_m,
+                   lookahead=True)
 
     def validate(self):
         s = sum(self.weights.values())
@@ -125,7 +150,15 @@ class UncertaintyScheduler:
         elif self._refractory == 0 and U > self.cfg.tau:
             trigger, reason = True, "soft_U"
 
-        # Note: hard floors override the refractory window on purpose -- safety first.
+        # v1: hard floors override the refractory window on purpose -- safety first.
+        # v2: a fix resets the uncertainty, so re-firing every frame only re-buys the
+        # same fix; floors wait for the cooldown unless sigma is past the emergency level.
+        if (trigger and reason != "soft_U" and self.cfg.floors_respect_cooldown
+                and self._refractory > 0):
+            emergency = (self.cfg.emergency_sigma is not None
+                         and cues["sigma_pos"] > self.cfg.emergency_sigma)
+            if not emergency:
+                trigger, reason = False, "none"
         return U, trigger, reason, comp
 
 
@@ -166,5 +199,14 @@ if __name__ == "__main__":
     U, trig, why, _ = sch.compute(dict(sigma_pos=0.3, feature_loss=5.0, active_features=12))
     assert trig and why == "observability_floor", (U, trig, why)
     print(f"few-feat:  U={U:.3f} trigger={trig} ({why})")
+
+    # 6) v2: floors respect the cooldown, but an emergency still overrides it.
+    v2 = UncertaintyScheduler(SchedulerConfig.v2(budget_m=1.0))
+    v2.reset_after_fix()
+    U, trig, why, _ = v2.compute(dict(sigma_pos=1.2, active_features=80))
+    assert not trig, (U, trig, why)
+    U, trig, why, _ = v2.compute(dict(sigma_pos=2.5, active_features=80))
+    assert trig and why == "hard_floor_sigma", (U, trig, why)
+    print("v2:        floor waits for cooldown; emergency (2x budget) overrides")
 
     print("\nAll uncertainty_scheduler self-tests passed.")

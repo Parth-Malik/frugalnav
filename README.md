@@ -49,6 +49,41 @@ MH\_01 sequence the same scheduler needed **68 fixes against 259** for equal acc
 a **74 % reduction**. Where no markers exist at all, every policy ties: absolute fixes are
 essential and scheduling is moot. We report that too.
 
+### FrugalNav v2 (current scheduler)
+
+Our TCOM study, *When Is a Correction Worth Its Cost?*, retested the scheduler under
+harder conditions: a closed-loop quadrotor simulator with attitude lag, drag and gusting
+wind, and a camera model **measured** with the real OpenCV ArUco detector on 4,320 degraded
+images (FrugalNav-HF, in [`research/tcom2026/`](research/tcom2026/)). The first release
+(**v1**) failed there: its 0.45-weighted position term saturates at 2 m, so on its own it
+can never exceed tau = 0.45; its filter grew uncertainty linearly and was overconfident
+(NEES 4.8 instead of 2); and in haze its observability floor bypassed the cooldown and
+fired on every frame. **v2** fixes this with three changes:
+
+1. **Honest uncertainty** (`FusionConfig.v2()`): variance grows with the *square* of the
+   distance flown since the last fix, plus a poor-image-quality term.
+2. **Look-ahead** (`StateFusion.predicted_sigma`, `LandmarkMap.distance_to_next_marker`):
+   the position cue is the uncertainty predicted at the next mapped marker, judged against
+   a metres budget: *fix now if I could not reach the next marker inside my budget*.
+3. **Floors respect the cooldown** (`SchedulerConfig.v2()`), with an emergency override at
+   2x the budget for real flight.
+
+It also adds a noise-compensated sharpness cue (`blur_metric.sharpness_score`), because raw
+Laplacian variance reads sensor noise as sharpness.
+
+| Policy (4,500 test flights, 3 worlds x 4 conditions) | RMSE | Detector calls / flight |
+|---|---:|---:|
+| always-correct | 0.37 m | 316 |
+| fixed timer (5 s) | 0.44 m | 8.4 |
+| **FrugalNav v2** (1.0 m budget, tau 0.55, 2 s cooldown) | **0.46 m** | **9.1** |
+| FrugalNav v1 (first release) | 1.54 m | 19.0 |
+
+v2 is within 5 % of the timer's accuracy at similar cost, uses fewer calls than the timer
+when the camera is clean and more (and is more accurate) when it is degraded, and beats the
+timer on average in the least uniform world. Its weakness is wind, which no cue reveals.
+`build_navigator(...)` now uses v2 by default; pass `version="v1"` for the original. The
+weekly demos and ROS nodes keep their own hand-tuned v1 settings until retuned.
+
 ---
 
 ## 2. How it works

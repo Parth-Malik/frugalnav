@@ -45,11 +45,36 @@ struct StateFusion {
     float a = 0.01f, b = 0.0f, c = 0.01f;   // covariance
     float q_per_metre = 0.02f;
     float p_floor = 1e-4f;
+    // FrugalNav v2 (both 0 = v1): drift grows with the square of distance since
+    // the last fix (correlated VIO errors), plus a poor-image-quality term.
+    float q_quad = 0.0f;                     // m^2 per m^2 of distance-since-fix
+    float q_quality = 0.0f;                  // m^2 per m at zero image quality
+    float dist_since_fix = 0.0f;
 
-    void predict(Vec2 d, float extra_var = 0.0f) {
+    void use_v2() { q_quad = 8.0e-4f; q_quality = 0.02f; }
+
+    // variance added by flying `dist` m, starting `start` m after the last fix;
+    // quality in [0,1], or < 0 for "not measured"
+    float growth(float dist, float quality, float start) const {
+        float q = q_per_metre * dist + q_quad * ((start + dist) * (start + dist) - start * start);
+        if (quality >= 0.0f) q += q_quality * (1.0f - (quality > 1.0f ? 1.0f : quality)) * dist;
+        return q;
+    }
+
+    void predict(Vec2 d, float extra_var = 0.0f, float quality = -1.0f) {
         xy = xy + d;
-        float q = q_per_metre * norm(d) + extra_var;
+        float dist = norm(d);
+        float q = growth(dist, quality, dist_since_fix) + extra_var;
+        dist_since_fix += dist;
         a += q; c += q;                      // isotropic process growth
+    }
+
+    // v2 look-ahead: sigma the filter WILL have after `ahead` more metres unfixed
+    float predicted_sigma(float ahead, float quality = -1.0f) const {
+        float tr = a + c, d = a - c;
+        float lam = 0.5f * (tr + std::sqrt(d * d + 4 * b * b));
+        lam += growth(ahead > 0 ? ahead : 0.0f, quality, dist_since_fix);
+        return std::sqrt(lam > 0 ? lam : 0.0f);
     }
 
     // Kalman update with an isotropic measurement covariance R = r*I.
@@ -70,6 +95,7 @@ struct StateFusion {
         float nb = (1 - k11) * b - k12 * c;
         float nc = -k21 * b + (1 - k22) * c;
         a = na + p_floor; b = 0.5f * (nb + (-k21 * a + (1 - k22) * b)); c = nc + p_floor;
+        dist_since_fix = 0.0f;
     }
 
     float sigma_pos() const {                // sqrt of larger eigenvalue of P

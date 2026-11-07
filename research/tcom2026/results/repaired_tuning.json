@@ -1,0 +1,99 @@
+{
+  "Q_QUAD": 0.0008,
+  "Q_QUAL": 0.02,
+  "fixed_rmse_tuning": 0.38486867317505086,
+  "calibration": [
+    {
+      "qq": 0.0002,
+      "ql": 0.02,
+      "mean": 3.842114363674873,
+      "median": 1.965173653554016
+    },
+    {
+      "qq": 0.0002,
+      "ql": 0.08,
+      "mean": 2.282473252215558,
+      "median": 1.1728464514595798
+    },
+    {
+      "qq": 0.0004,
+      "ql": 0.02,
+      "mean": 2.9380355722984097,
+      "median": 1.5236280376272315
+    },
+    {
+      "qq": 0.0004,
+      "ql": 0.08,
+      "mean": 1.91800872587216,
+      "median": 0.9992966896703055
+    },
+    {
+      "qq": 0.0008,
+      "ql": 0.02,
+      "mean": 2.013350286925007,
+      "median": 1.0760600625079397
+    },
+    {
+      "qq": 0.0008,
+      "ql": 0.08,
+      "mean": 1.4644102996970962,
+      "median": 0.776608970750942
+    },
+    {
+      "qq": 0.0016,
+      "ql": 0.02,
+      "mean": 1.2457089028312323,
+      "median": 0.6805671836429785
+    },
+    {
+      "qq": 0.0016,
+      "ql": 0.08,
+      "mean": 1.003583673577963,
+      "median": 0.5403359644443548
+    }
+  ],
+  "budget_table": [
+    {
+      "budget": 0.3,
+      "rmse": 0.33885456673766234,
+      "attempts": 22.816666666666666
+    },
+    {
+      "budget": 0.4,
+      "rmse": 0.33905098336851214,
+      "attempts": 22.504166666666666
+    },
+    {
+      "budget": 0.5,
+      "rmse": 0.33878677971327636,
+      "attempts": 22.079166666666666
+    },
+    {
+      "budget": 0.6,
+      "rmse": 0.3406336565490747,
+      "attempts": 21.583333333333332
+    },
+    {
+      "budget": 0.8,
+      "rmse": 0.3439789221104514,
+      "attempts": 18.908333333333335
+    }
+  ],
+  "selection_rule": "On held-out seeds 100-109 (all worlds and conditions): R-match = the setting with the fewest detector calls whose mean RMSE is no worse than the 5 s fixed timer; R-frugal = the setting with the fewest calls overall. Timer reference on the same seeds: T=3 0.439 m/12.3, T=5 0.447 m/7.6, T=8 0.491 m/5.8, T=12 0.672 m/4.1.",
+  "configs": {
+    "R-match": {
+      "budget": 1.0,
+      "refractory": 20,
+      "tau": 0.55,
+      "tune_rmse": 0.436,
+      "tune_calls": 8.82
+    },
+    "R-frugal": {
+      "budget": 1.2,
+      "refractory": 30,
+      "tau": 0.7,
+      "tune_rmse": 0.527,
+      "tune_calls": 3.78
+    }
+  }
+}

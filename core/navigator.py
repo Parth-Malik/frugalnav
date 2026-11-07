@@ -34,9 +34,9 @@ import numpy as np
 from core.controller import TargetCentricController
 from core.landmark_corrector import LandmarkCorrector
 from core.obstacle_avoidance import ObstacleAvoidance
-from core.state_fusion import StateFusion
+from core.state_fusion import FusionConfig, StateFusion
 from core.types import MarkerSighting, VelocityCmd
-from core.uncertainty_scheduler import UncertaintyScheduler
+from core.uncertainty_scheduler import SchedulerConfig, UncertaintyScheduler
 
 
 @dataclass
@@ -46,7 +46,8 @@ class SensorInput:
     t: float
     vio_delta: np.ndarray                    # (2,) relative-motion increment from VIO
     cues: dict = field(default_factory=dict) # feature_loss, blur, imu_bias,
-                                             # active_features, sigma_head, extra_var
+                                             # active_features, sigma_head, extra_var,
+                                             # image_quality [0,1] and footprint_m (v2)
     sighting: "MarkerSighting | None" = None # a mapped marker seen this frame, or None
     obstacle: "tuple | None" = None          # (ttc_s, bearing_rad) or None if clear
 
@@ -82,11 +83,19 @@ class Navigator:
 
     def step(self, si: SensorInput) -> NavOutput:
         # 1. PREDICT: dead-reckon the fused state on the VIO motion; P grows.
-        self.fusion.predict(si.vio_delta, extra_var=si.cues.get("extra_var"), t=si.t)
+        self.fusion.predict(si.vio_delta, extra_var=si.cues.get("extra_var"), t=si.t,
+                            quality=si.cues.get("image_quality"))
 
         # 2. CUES: sigma_pos comes from the fused covariance (trigger == estimate).
+        #    v2 (lookahead): use the sigma PREDICTED at the next mapped marker, so the
+        #    scheduler fixes now if it could not get there inside its budget.
         cues = dict(si.cues)
         cues["sigma_pos"] = self.fusion.sigma_pos()
+        if getattr(self.scheduler.cfg, "lookahead", False) and self.corrector is not None:
+            gap = self.corrector.map.distance_to_next_marker(
+                self.fusion.state.xy, self.controller.B,
+                exclude_radius=float(si.cues.get("footprint_m", 3.0)))
+            cues["sigma_pos"] = self.fusion.predicted_sigma(gap, si.cues.get("image_quality"))
         cues.setdefault("active_features", 9999)
 
         # 3. SCHEDULE: should we spend an AVL fix now?
@@ -128,10 +137,15 @@ class Navigator:
 
 def build_navigator(target_B, landmark_map=None, start_xy=(0.0, 0.0),
                     scheduler=None, controller=None, fusion=None,
-                    avoider=None, fuse_gain=None):
+                    avoider=None, fuse_gain=None, version="v2"):
     """Assemble a Navigator from the core modules with sensible defaults. Pass a
-    LandmarkMap to enable landmark correction; omit it for a pure-VIO baseline."""
+    LandmarkMap to enable landmark correction; omit it for a pure-VIO baseline.
+    version="v2" (default) uses the FrugalNav v2 scheduler and filter; "v1" the
+    original release."""
     controller = controller or TargetCentricController(target_B=target_B)
+    if version == "v2":
+        scheduler = scheduler or UncertaintyScheduler(SchedulerConfig.v2())
+        fusion = fusion or StateFusion(init_xy=start_xy, cfg=FusionConfig.v2())
     scheduler = scheduler or UncertaintyScheduler()
     fusion = fusion or StateFusion(init_xy=start_xy)
     corrector = LandmarkCorrector(landmark_map) if landmark_map is not None else None
