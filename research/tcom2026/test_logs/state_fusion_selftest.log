@@ -1,0 +1,5 @@
+sigma_pos grew under dead-reckoning: 0.050 -> 0.450 m
+sigma_pos shrank after fix: 0.450 -> 0.022 m; xy=[10.  0.]
+gain=1.0 snap: xy=[0. 0.]
+
+state_fusion self-test passed.

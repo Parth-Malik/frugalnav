@@ -1,0 +1,8 @@
+calm:      U=0.018 trigger=False (none)
+drifting:  U=0.666 trigger=True (soft_U)
+refractory:U=0.666 trigger=False (none)  <- correctly suppressed
+hardfloor: U=0.533 trigger=True (hard_floor_sigma)
+few-feat:  U=0.074 trigger=True (observability_floor)
+v2:        floor waits for cooldown; emergency (2x budget) overrides
+
+All uncertainty_scheduler self-tests passed.
