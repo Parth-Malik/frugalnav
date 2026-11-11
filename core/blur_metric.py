@@ -45,6 +45,26 @@ def blur_badness(img, ref_sharpness: float) -> float:
     return float(np.clip(1.0 - s / max(ref_sharpness, 1e-9), 0.0, 1.0))
 
 
+def laplacian_sharpness_nc(img, noise_std: float) -> float:
+    """Noise-compensated focus measure (FrugalNav v2).
+
+    Raw Laplacian variance READS SENSOR NOISE AS SHARPNESS: the 3x3 Laplacian kernel
+    has squared-weight sum 20, so i.i.d. noise of std s (grey levels) adds 20*s^2.
+    Measured with the real ArUco pipeline, noise of s = 0.03*255 inflated it 4.3x
+    and s = 0.08*255 25x on an unchanged scene. `noise_std` (grey levels) can be
+    estimated on-board, e.g. from a flat image region."""
+    return laplacian_sharpness(img) - 20.0 * float(noise_std) ** 2
+
+
+def sharpness_score(img, ref_sharpness: float, noise_std: float = 0.0) -> float:
+    """Sharpness in [0, 1] relative to a known-sharp reference, on a LOG scale
+    (raw variance falls ~30x for 1 px of blur, so a linear ratio saturates).
+    1.0 = as sharp as the reference, 0.0 = no detail left."""
+    s = max(laplacian_sharpness_nc(img, noise_std), 1.0)
+    ref = max(float(ref_sharpness), 1.0 + 1e-9)
+    return float(np.clip(np.log(s) / np.log(ref), 0.0, 1.0))
+
+
 def gaussian_blur(img, sigma: float):
     """Convenience: blur an image by a Gaussian of the given sigma (for tests /
     the blur demo -- simulates motion/defocus blur on a frame)."""

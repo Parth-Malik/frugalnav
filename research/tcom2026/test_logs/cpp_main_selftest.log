@@ -1,0 +1,20 @@
+== scheduler self-test (must match uncertainty_scheduler.py) ==
+  calm:       U=0.018 trigger=0 (none)
+  drifting:   U=0.666 trigger=1 (soft_U)
+  refractory: U=0.666 trigger=0 (none)  <- suppressed
+  hardfloor:  U=0.533 trigger=1 (hard_floor_sigma)
+  few-feat:   U=0.074 trigger=1 (observability_floor)
+  all scheduler self-tests passed.
+
+== one full decision hot-loop step ==
+  U=0.200 trigger=0  sigma=0.282  evading=1  cmd=(-1.861, -0.733)
+
+== hot-loop benchmark (measured on this host) ==
+  full hot loop: 67.1 ns/step over 5000000 steps  (sink=14847619072.0)
+  scheduler only: 68.4 ns/step (measured on this x86 host)
+  NOTE: these are HOST nanoseconds. The GAP9 projection (cycle-count
+        model + clock/IPC derating) is in profiling/riscv_feasibility.md;
+        do not read host ns as target cycles.
+
+FrugalNav C++ core OK.
+exit=0

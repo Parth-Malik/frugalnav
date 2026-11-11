@@ -1,0 +1,257 @@
+           world      cond          policy   rmse  rmse_sd   peak    arr      att    fixes   bits   comp   succ    nees  energy     time
+0     City block  Combined    Adaptive (U)  1.857    2.504  4.576  3.688    4.333    3.300  7.696  0.002  0.900   5.998   5.594  105.600
+1     City block  Combined  Always-correct  0.628    1.229  1.788  1.227  434.567  388.533  1.588  0.154  0.933   2.908   5.598  105.660
+2     City block  Combined     Fixed timer  0.703    1.165  1.927  1.236   12.267   10.733  6.232  0.004  0.933   1.556   5.605  105.797
+3     City block  Combined        R-frugal  0.965    1.346  2.522  1.778    5.000    4.367  8.686  0.002  0.933   0.928   5.653  106.703
+4     City block  Combined         R-match  0.828    1.374  2.241  1.646   13.300   11.733  6.716  0.005  0.933   0.903   5.623  106.107
+5     City block  Degraded    Adaptive (U)  0.847    1.392  2.080  1.633    4.900    4.267  6.194  0.003  1.000   2.018   2.643   52.513
+6     City block  Degraded  Always-correct  0.209    0.073  0.517  0.506  348.833  311.733  1.854  0.243  1.000   3.260   2.634   52.343
+7     City block  Degraded     Fixed timer  0.258    0.110  0.673  0.598    8.800    7.867  6.477  0.006  1.000   0.598   2.635   52.357
+8     City block  Degraded        R-frugal  0.371    0.245  0.977  0.796    4.767    4.267  8.212  0.003  1.000   0.397   2.639   52.450
+9     City block  Degraded         R-match  0.236    0.098  0.602  0.552   13.767   11.233  6.580  0.010  1.000   0.483   2.633   52.330
+10    City block     Ideal    Adaptive (U)  2.421    2.957  5.407  4.381    0.767    0.767  9.126  0.001  1.000   8.996   2.649   52.640
+11    City block     Ideal  Always-correct  0.203    0.074  0.487  0.500  348.567  348.567  1.714  0.242  1.000   3.627   2.633   52.333
+12    City block     Ideal     Fixed timer  0.246    0.113  0.620  0.584    7.900    7.900  6.357  0.005  1.000   0.604   2.635   52.367
+13    City block     Ideal        R-frugal  0.427    0.250  1.111  0.829    3.267    3.267  8.557  0.002  1.000   0.440   2.645   52.560
+14    City block     Ideal         R-match  0.280    0.153  0.758  0.611    5.667    5.667  7.621  0.004  1.000   0.380   2.639   52.437
+15    City block      Wind    Adaptive (U)  4.136    5.317  9.049  7.961    0.767    0.767  9.303  0.000  0.900  19.519   5.530  104.367
+16    City block      Wind  Always-correct  0.584    1.083  1.694  1.174  433.067  433.067  1.456  0.153  0.933   2.891   5.593  105.567
+17    City block      Wind     Fixed timer  0.849    1.394  2.277  1.578   10.400   10.400  6.119  0.004  0.933   2.264   5.577  105.250
+18    City block      Wind        R-frugal  1.178    1.875  2.948  2.157    3.567    3.567  8.851  0.001  0.933   1.340   5.577  105.283
+19    City block      Wind         R-match  0.985    1.601  2.570  1.780    5.733    5.733  7.888  0.002  0.933   1.071   5.637  106.393
+20    Open arena  Combined    Adaptive (U)  0.871    0.506  1.965  1.150    1.367    1.000  8.609  0.001  1.000   1.403   2.906   56.463
+21    Open arena  Combined  Always-correct  0.201    0.085  0.484  0.490  318.900  285.133  1.625  0.208  1.000   2.578   2.906   56.463
+22    Open arena  Combined     Fixed timer  0.267    0.194  0.654  0.497    9.267    8.367  6.066  0.006  1.000   0.592   2.831   55.043
+23    Open arena  Combined        R-frugal  0.443    0.280  1.117  0.578    3.033    2.733  8.778  0.002  1.000   0.369   2.903   56.407
+24    Open arena  Combined         R-match  0.238    0.099  0.549  0.501   10.700    9.300  6.463  0.007  1.000   0.424   2.900   56.357
+25    Open arena  Degraded    Adaptive (U)  0.663    0.355  1.571  0.963    1.867    1.000  8.505  0.002  1.000   0.865   2.084   41.477
+26    Open arena  Degraded  Always-correct  0.171    0.005  0.283  0.460  335.200  299.467  1.798  0.296  1.000   4.133   2.075   41.287
+27    Open arena  Degraded     Fixed timer  0.196    0.044  0.368  0.496    8.167    7.100  6.226  0.007  1.000   0.578   2.075   41.297
+28    Open arena  Degraded        R-frugal  0.288    0.092  0.692  0.497    3.433    3.000  8.569  0.003  1.000   0.281   2.077   41.333
+29    Open arena  Degraded         R-match  0.185    0.036  0.340  0.476   12.467   11.367  6.166  0.011  1.000   0.584   2.074   41.263
+30    Open arena     Ideal    Adaptive (U)  1.418    0.924  2.958  3.013    0.000    0.000    NaN  0.000  1.000   2.617   2.081   41.420
+31    Open arena     Ideal  Always-correct  0.171    0.005  0.277  0.470  335.433  335.433  1.620  0.296  1.000   4.789   2.074   41.283
+32    Open arena     Ideal     Fixed timer  0.189    0.048  0.342  0.500    7.067    7.067  6.041  0.006  1.000   0.629   2.074   41.270
+33    Open arena     Ideal        R-frugal  0.331    0.130  0.788  0.869    2.000    2.000  8.283  0.002  1.000   0.319   2.077   41.337
+34    Open arena     Ideal         R-match  0.200    0.051  0.397  0.540    4.833    4.833  7.062  0.004  1.000   0.441   2.074   41.273
+35    Open arena      Wind    Adaptive (U)  1.869    1.273  3.757  3.680    0.000    0.000    NaN  0.000  1.000   4.206   2.828   54.973
+36    Open arena      Wind  Always-correct  0.205    0.107  0.477  0.482  319.900  319.900  1.460  0.208  1.000   3.001   2.908   56.507
+37    Open arena      Wind     Fixed timer  0.233    0.131  0.551  0.500    8.433    8.433  5.882  0.006  1.000   0.612   2.833   55.077
+38    Open arena      Wind        R-frugal  0.541    0.330  1.289  0.886    2.067    2.067  8.641  0.001  1.000   0.491   2.910   56.557
+39    Open arena      Wind         R-match  0.346    0.236  0.835  0.631    3.933    3.933  7.645  0.003  1.000   0.414   2.903   56.413
+40  Rocky canyon  Combined    Adaptive (U)  1.820    2.313  3.906  3.631   45.200   39.800  2.352  0.026  1.000   4.954   3.652   70.403
+41  Rocky canyon  Combined  Always-correct  0.892    1.519  1.992  1.723  227.833  203.167  1.774  0.127  1.000   3.657   3.659   70.540
+42  Rocky canyon  Combined     Fixed timer  0.933    1.578  2.102  1.702    8.200    7.167  6.596  0.005  1.000   2.371   3.719   71.670
+43  Rocky canyon  Combined        R-frugal  1.044    1.789  2.352  1.960    5.067    4.533  8.099  0.003  1.000   1.007   3.702   71.347
+44  Rocky canyon  Combined         R-match  0.879    1.443  1.990  1.682   11.800   10.633  6.483  0.007  1.000   0.969   3.723   71.753
+45  Rocky canyon  Degraded    Adaptive (U)  0.426    0.166  1.162  0.876   69.000   61.800  2.168  0.049  1.000   1.041   2.568   51.123
+46  Rocky canyon  Degraded  Always-correct  0.203    0.051  0.457  0.465  232.167  209.633  1.928  0.165  1.000   2.392   2.568   51.133
+47  Rocky canyon  Degraded     Fixed timer  0.282    0.126  0.709  0.552    6.900    6.267  6.902  0.005  1.000   0.552   2.567   51.110
+48  Rocky canyon  Degraded        R-frugal  0.296    0.120  0.834  0.703    5.967    5.400  7.704  0.004  1.000   0.341   2.567   51.113
+49  Rocky canyon  Degraded         R-match  0.240    0.087  0.565  0.540   13.667   12.067  6.422  0.010  1.000   0.519   2.566   51.093
+50  Rocky canyon     Ideal    Adaptive (U)  0.429    0.163  1.190  0.913   60.367   60.367  2.157  0.043  1.000   1.047   2.568   51.137
+51  Rocky canyon     Ideal  Always-correct  0.201    0.052  0.454  0.487  232.133  232.133  1.788  0.165  1.000   2.666   2.568   51.120
+52  Rocky canyon     Ideal     Fixed timer  0.274    0.112  0.682  0.523    6.267    6.267  6.794  0.004  1.000   0.573   2.569   51.143
+53  Rocky canyon     Ideal        R-frugal  0.278    0.103  0.731  0.636    5.167    5.167  7.697  0.004  1.000   0.345   2.568   51.137
+54  Rocky canyon     Ideal         R-match  0.256    0.089  0.662  0.624    7.167    7.167  6.946  0.005  1.000   0.402   2.566   51.097
+55  Rocky canyon      Wind    Adaptive (U)  1.765    2.170  3.760  3.649   39.533   39.533  2.253  0.023  1.000   4.816   3.646   70.290
+56  Rocky canyon      Wind  Always-correct  0.791    1.386  1.795  1.595  227.367  227.367  1.630  0.127  1.000   3.591   3.658   70.503
+57  Rocky canyon      Wind     Fixed timer  0.881    1.456  1.989  1.608    7.167    7.167  6.466  0.004  1.000   2.216   3.720   71.690
+58  Rocky canyon      Wind        R-frugal  1.006    1.708  2.289  1.888    4.267    4.267  8.032  0.002  1.000   1.010   3.711   71.513
+59  Rocky canyon      Wind         R-match  0.881    1.469  1.968  1.687    6.067    6.067  7.267  0.004  1.000   0.891   3.709   71.470
+           world      cond    metric              vs  mean_adaptive  mean_other  mean_diff        pct    p
+0     Open arena     Ideal      rmse     Fixed timer         1.4177      0.1894     1.2282   648.3692  0.0
+1     Open arena     Ideal      rmse  Always-correct         1.4177      0.1706     1.2470   730.7967  0.0
+2     Open arena     Ideal  attempts     Fixed timer         0.0000      7.0667    -7.0667  -100.0000  0.0
+3     Open arena     Ideal  attempts  Always-correct         0.0000    335.4333  -335.4333  -100.0000  0.0
+4     Open arena      Wind      rmse     Fixed timer         1.8693      0.2334     1.6359   700.9737  0.0
+5     Open arena      Wind      rmse  Always-correct         1.8693      0.2055     1.6638   809.7116  0.0
+6     Open arena      Wind  attempts     Fixed timer         0.0000      8.4333    -8.4333  -100.0000  0.0
+7     Open arena      Wind  attempts  Always-correct         0.0000    319.9000  -319.9000  -100.0000  0.0
+8     Open arena  Degraded      rmse     Fixed timer         0.6625      0.1956     0.4670   238.7665  0.0
+9     Open arena  Degraded      rmse  Always-correct         0.6625      0.1712     0.4913   286.9233  0.0
+10    Open arena  Degraded  attempts     Fixed timer         1.8667      8.1667    -6.3000   -77.1429  0.0
+11    Open arena  Degraded  attempts  Always-correct         1.8667    335.2000  -333.3333   -99.4431  0.0
+12    Open arena  Combined      rmse     Fixed timer         0.8709      0.2671     0.6039   226.1111  0.0
+13    Open arena  Combined      rmse  Always-correct         0.8709      0.2006     0.6704   334.2461  0.0
+14    Open arena  Combined  attempts     Fixed timer         1.3667      9.2667    -7.9000   -85.2518  0.0
+15    Open arena  Combined  attempts  Always-correct         1.3667    318.9000  -317.5333   -99.5714  0.0
+16    City block     Ideal      rmse     Fixed timer         2.4211      0.2457     2.1754   885.4330  0.0
+17    City block     Ideal      rmse  Always-correct         2.4211      0.2032     2.2178  1091.2356  0.0
+18    City block     Ideal  attempts     Fixed timer         0.7667      7.9000    -7.1333   -90.2954  0.0
+19    City block     Ideal  attempts  Always-correct         0.7667    348.5667  -347.8000   -99.7801  0.0
+20    City block      Wind      rmse     Fixed timer         4.1358      0.8488     3.2870   387.2475  0.0
+21    City block      Wind      rmse  Always-correct         4.1358      0.5838     3.5520   608.4386  0.0
+22    City block      Wind  attempts     Fixed timer         0.7667     10.4000    -9.6333   -92.6282  0.0
+23    City block      Wind  attempts  Always-correct         0.7667    433.0667  -432.3000   -99.8230  0.0
+24    City block  Degraded      rmse     Fixed timer         0.8469      0.2584     0.5885   227.7669  0.0
+25    City block  Degraded      rmse  Always-correct         0.8469      0.2090     0.6379   305.2637  0.0
+26    City block  Degraded  attempts     Fixed timer         4.9000      8.8000    -3.9000   -44.3182  0.0
+27    City block  Degraded  attempts  Always-correct         4.9000    348.8333  -343.9333   -98.5953  0.0
+28    City block  Combined      rmse     Fixed timer         1.8566      0.7031     1.1534   164.0477  0.0
+29    City block  Combined      rmse  Always-correct         1.8566      0.6280     1.2286   195.6330  0.0
+30    City block  Combined  attempts     Fixed timer         4.3333     12.2667    -7.9333   -64.6739  0.0
+31    City block  Combined  attempts  Always-correct         4.3333    434.5667  -430.2333   -99.0028  0.0
+32  Rocky canyon     Ideal      rmse     Fixed timer         0.4294      0.2737     0.1557    56.8776  0.0
+33  Rocky canyon     Ideal      rmse  Always-correct         0.4294      0.2015     0.2279   113.1232  0.0
+34  Rocky canyon     Ideal  attempts     Fixed timer        60.3667      6.2667    54.1000   863.2979  0.0
+35  Rocky canyon     Ideal  attempts  Always-correct        60.3667    232.1333  -171.7667   -73.9948  0.0
+36  Rocky canyon      Wind      rmse     Fixed timer         1.7653      0.8809     0.8844   100.4047  0.0
+37  Rocky canyon      Wind      rmse  Always-correct         1.7653      0.7912     0.9741   123.1244  0.0
+38  Rocky canyon      Wind  attempts     Fixed timer        39.5333      7.1667    32.3667   451.6279  0.0
+39  Rocky canyon      Wind  attempts  Always-correct        39.5333    227.3667  -187.8333   -82.6125  0.0
+40  Rocky canyon  Degraded      rmse     Fixed timer         0.4256      0.2820     0.1435    50.8996  0.0
+41  Rocky canyon  Degraded      rmse  Always-correct         0.4256      0.2033     0.2223   109.3246  0.0
+42  Rocky canyon  Degraded  attempts     Fixed timer        69.0000      6.9000    62.1000   900.0000  0.0
+43  Rocky canyon  Degraded  attempts  Always-correct        69.0000    232.1667  -163.1667   -70.2800  0.0
+44  Rocky canyon  Combined      rmse     Fixed timer         1.8199      0.9329     0.8869    95.0693  0.0
+45  Rocky canyon  Combined      rmse  Always-correct         1.8199      0.8922     0.9276   103.9633  0.0
+46  Rocky canyon  Combined  attempts     Fixed timer        45.2000      8.2000    37.0000   451.2195  0.0
+47  Rocky canyon  Combined  attempts  Always-correct        45.2000    227.8333  -182.6333   -80.1609  0.0
+{
+ "Always-correct": {
+  "rmse": 0.37167500401528486,
+  "peak": 0.8921607529851902,
+  "arrival_err": 0.7983189348129878,
+  "attempts": 316.1638888888889,
+  "fixes": 299.5111111111111,
+  "bits_per_fix": 1.6863051416403216,
+  "compute_share": 0.19861777528510638,
+  "arrived": 0.9888888888888889,
+  "nees": 3.2909812622862358,
+  "energy_Wh": 3.239473626952479,
+  "rmse_ideal": 0.19177878453295844,
+  "rmse_comb": 0.5735992046690437,
+  "att_ideal": 305.3777777777778,
+  "att_comb": 327.1,
+  "bits_ideal": 1.7073907191433364,
+  "bits_comb": 1.6626316543558857
+ },
+ "Fixed timer": {
+  "rmse": 0.4425788029652752,
+  "peak": 1.0745643079389484,
+  "arrival_err": 0.8645567449876574,
+  "attempts": 8.402777777777779,
+  "fixes": 7.894444444444445,
+  "bits_per_fix": 6.346553675876837,
+  "compute_share": 0.00525850262969265,
+  "arrived": 0.9888888888888889,
+  "nees": 1.095366322553441,
+  "energy_Wh": 3.2366168391956105,
+  "rmse_ideal": 0.23626845208153363,
+  "rmse_comb": 0.6343673096005029,
+  "att_ideal": 7.0777777777777775,
+  "att_comb": 9.911111111111111,
+  "bits_ideal": 6.397242062103901,
+  "bits_comb": 6.297951874450503
+ },
+ "R-match": {
+  "rmse": 0.4627297289821022,
+  "peak": 1.1230201346101683,
+  "arrival_err": 0.9390328844796042,
+  "attempts": 9.091666666666667,
+  "fixes": 8.311111111111112,
+  "bits_per_fix": 6.938189194879355,
+  "compute_share": 0.005919690781213613,
+  "arrived": 0.9888888888888889,
+  "nees": 0.6232756581041008,
+  "energy_Wh": 3.253958589519191,
+  "rmse_ideal": 0.24519855157207998,
+  "rmse_comb": 0.6482866433166816,
+  "att_ideal": 5.888888888888889,
+  "att_comb": 11.933333333333334,
+  "bits_ideal": 7.209587849192072,
+  "bits_comb": 6.5540294859484
+ },
+ "Adaptive (U)": {
+  "rmse": 1.5434026818156654,
+  "peak": 3.448498316326547,
+  "arrival_err": 2.961513954309789,
+  "attempts": 19.008333333333333,
+  "fixes": 17.716666666666665,
+  "bits_per_fix": 5.804181061071623,
+  "compute_share": 0.012478579118539538,
+  "arrived": 0.9833333333333333,
+  "nees": 4.790050232521632,
+  "energy_Wh": 3.229107279258132,
+  "rmse_ideal": 1.4226968161343427,
+  "rmse_comb": 1.5157741670064635,
+  "att_ideal": 20.377777777777776,
+  "att_comb": 16.966666666666665,
+  "bits_ideal": 5.181069631134784,
+  "bits_comb": 6.495083961433372
+ },
+ "R-frugal": {
+  "rmse": 0.5972104928705555,
+  "peak": 1.4707564774461641,
+  "arrival_err": 1.1313623696932427,
+  "attempts": 3.966666666666667,
+  "fixes": 3.7194444444444446,
+  "bits_per_fix": 8.343955334052357,
+  "compute_share": 0.002536355067583149,
+  "arrived": 0.9888888888888889,
+  "nees": 0.6057294031902563,
+  "energy_Wh": 3.252515709415987,
+  "rmse_ideal": 0.3452118221653645,
+  "rmse_comb": 0.8173507544985674,
+  "att_ideal": 3.477777777777778,
+  "att_comb": 4.366666666666666,
+  "bits_ideal": 8.178898751056723,
+  "bits_comb": 8.525756587466196
+ },
+ "lapvar_noise": {
+  "0.00": {
+   "raw": 351.555650841372,
+   "compensated": 351.555650841372
+  },
+  "0.03": {
+   "raw": 1515.3827047931277,
+   "compensated": 344.932704793128
+  },
+  "0.08": {
+   "raw": 8648.825825375887,
+   "compensated": 325.6258253758853
+  }
+ },
+ "lapvar_motion": {
+  "0": {
+   "raw": 49.773042057467904,
+   "compensated": 49.773042057467904,
+   "p_det": 1.0
+  },
+  "4": {
+   "raw": 26.869843357494847,
+   "compensated": 26.869843357494847,
+   "p_det": 1.0
+  },
+  "8": {
+   "raw": 13.861665986117377,
+   "compensated": 13.861665986117377,
+   "p_det": 1.0
+  },
+  "12": {
+   "raw": 9.77733888310444,
+   "compensated": 9.77733888310444,
+   "p_det": 1.0
+  },
+  "16": {
+   "raw": 7.90180069938283,
+   "compensated": 7.90180069938283,
+   "p_det": 0.0
+  },
+  "24": {
+   "raw": 6.04951374626666,
+   "compensated": 6.04951374626666,
+   "p_det": 0.0
+  }
+ },
+ "timing": {
+  "host": "x86-64 laptop, Python/OpenCV 5.0.0",
+  "frame": "1280x720 grey",
+  "n": 300,
+  "median_ms": 36.41545001300983,
+  "p95_ms": 52.963595031178556
+ },
+ "n_flights": 4500,
+ "n_main": 1800
+}

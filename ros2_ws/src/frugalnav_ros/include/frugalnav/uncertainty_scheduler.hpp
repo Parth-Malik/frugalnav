@@ -59,6 +59,22 @@ struct SchedulerConfig {
     int   feature_floor    = 20;      // observability floor: force a fix below this
     int   refractory_ticks = 15;      // suppress re-trigger for N ticks after a fix
     CueBounds bounds;
+    // --- FrugalNav v2 (defaults = v1 behaviour; mirrors SchedulerConfig.v2()) ---
+    bool  floors_respect_cooldown = false;  // floors wait for the refractory window...
+    float emergency_sigma = -1.0f;          // ...unless sigma_pos > this (m); <0 = off
+    bool  lookahead = false;                // caller feeds sigma predicted at next marker
+
+    static SchedulerConfig v2(float budget_m = 1.0f, float tau_ = 0.55f, int refractory = 20) {
+        SchedulerConfig c;
+        c.tau = tau_;
+        c.sigma_pos_floor = budget_m;
+        c.refractory_ticks = refractory;
+        c.bounds.sigma_pos_hi = budget_m;
+        c.floors_respect_cooldown = true;
+        c.emergency_sigma = 2.0f * budget_m;
+        c.lookahead = true;
+        return c;
+    }
 };
 
 enum class Reason : std::uint8_t { None, HardFloorSigma, ObservabilityFloor, SoftU };
@@ -101,6 +117,12 @@ public:
             r.trigger = true; r.reason = Reason::ObservabilityFloor;
         } else if (refractory_ == 0 && U > cfg_.tau) {
             r.trigger = true; r.reason = Reason::SoftU;
+        }
+        // v2: safety floors respect the cooldown unless sigma is past the emergency level
+        if (r.trigger && r.reason != Reason::SoftU && cfg_.floors_respect_cooldown &&
+            refractory_ > 0) {
+            bool emergency = cfg_.emergency_sigma >= 0.0f && c.sigma_pos > cfg_.emergency_sigma;
+            if (!emergency) { r.trigger = false; r.reason = Reason::None; }
         }
         return r;
     }

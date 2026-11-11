@@ -61,6 +61,24 @@ class LandmarkMap:
     def all_world_xy(self) -> np.ndarray:
         return np.array([m.T_WM[:2, 3] for m in self._markers.values()])
 
+    def distance_to_next_marker(self, xy, toward, exclude_radius=3.0, corridor=5.0) -> float:
+        """FrugalNav v2 look-ahead: how far ahead (m) is the next mapped marker on
+        the way from `xy` to `toward` (usually target B)? Markers already inside
+        `exclude_radius` (the current camera footprint) are skipped, and only
+        markers within `corridor` metres of the line of travel count. If none is
+        ahead, returns the distance to `toward` itself."""
+        xy = np.asarray(xy, dtype=float).reshape(2)
+        d = np.asarray(toward, dtype=float).reshape(2) - xy
+        L = float(np.linalg.norm(d))
+        if L < 1e-9 or not self._markers:
+            return L
+        u = d / L
+        rel = self.all_world_xy() - xy
+        along = rel @ u
+        lateral = np.abs(rel @ np.array([-u[1], u[0]]))
+        ok = (along > exclude_radius) & (lateral < corridor) & (along < L + corridor)
+        return float(along[ok].min()) if ok.any() else L
+
     # --- loading ---------------------------------------------------------
     @staticmethod
     def from_json(path) -> "LandmarkMap":

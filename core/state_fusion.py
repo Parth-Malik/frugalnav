@@ -44,6 +44,19 @@ class FusionConfig:
     q_per_metre: float = 0.02
     # a small floor so P never collapses to exactly zero after a fix.
     p_floor: float = 1e-4
+    # --- FrugalNav v2 (both 0.0 = v1 behaviour) ---------------------------
+    # VIO scale, heading and bias errors are CORRELATED, so drift grows with the
+    # square of the distance flown since the last fix, not linearly. Growing P
+    # linearly made v1 overconfident (NEES ~4.8 instead of 2) between sparse fixes.
+    q_quad: float = 0.0          # m^2 per m^2 of distance-since-fix
+    # extra variance per metre flown at zero image quality (0 = perfect imagery)
+    q_quality: float = 0.0       # m^2 per m
+
+    @classmethod
+    def v2(cls) -> "FusionConfig":
+        """Coefficients calibrated so a never-correcting filter is consistent
+        (mean NEES ~2) on held-out flights (TCOM study, FrugalNav-HF)."""
+        return cls(q_quad=8.0e-4, q_quality=0.02)
 
 
 class StateFusion:
@@ -52,6 +65,7 @@ class StateFusion:
     def __init__(self, init_xy=(0.0, 0.0), init_yaw=0.0, init_std=0.1,
                  cfg: FusionConfig | None = None):
         self.cfg = cfg or FusionConfig()
+        self.dist_since_fix = 0.0      # metres flown since the last absolute fix (v2)
         self.state = NavState(
             xy=np.asarray(init_xy, dtype=float).reshape(2).copy(),
             yaw=float(init_yaw),
@@ -59,17 +73,19 @@ class StateFusion:
         )
 
     # -- prediction (dead-reckon on VIO relative motion) --------------------
-    def predict(self, delta_xy, yaw=None, extra_var=None, t=None) -> NavState:
+    def predict(self, delta_xy, yaw=None, extra_var=None, t=None, quality=None) -> NavState:
         """Advance the state by a VIO relative-motion increment `delta_xy` and grow
         the covariance. `extra_var` optionally injects additional process variance
-        for a hard/low-texture stretch (the scheduler will see the larger sigma_pos)."""
+        for a hard/low-texture stretch (the scheduler will see the larger sigma_pos).
+        `quality` in [0, 1] is the observed image quality (v2; None = perfect)."""
         d = np.asarray(delta_xy, dtype=float).reshape(2)
         self.state.xy = self.state.xy + d
         if yaw is not None:
             self.state.yaw = float(yaw)
 
         dist = float(np.linalg.norm(d))
-        q = self.cfg.q_per_metre * dist
+        q = self._growth(dist, quality)
+        self.dist_since_fix += dist
         if extra_var:
             q += float(extra_var)
         self.state.covariance = self.state.covariance + np.eye(2) * q
@@ -101,7 +117,27 @@ class StateFusion:
         self.state.covariance = newP
         self.state.yaw = float(fix.yaw)
         self.state.timestamp = float(fix.timestamp)
+        self.dist_since_fix = 0.0
         return self.state
+
+    # -- process-noise model -------------------------------------------------
+    def _growth(self, dist, quality=None, start=None) -> float:
+        """Variance added by flying `dist` metres, starting `start` metres after
+        the last fix (default: now). v1 terms only when q_quad = q_quality = 0."""
+        D = self.dist_since_fix if start is None else float(start)
+        q = self.cfg.q_per_metre * dist
+        q += self.cfg.q_quad * ((D + dist) ** 2 - D ** 2)
+        if quality is not None:
+            q += self.cfg.q_quality * (1.0 - float(np.clip(quality, 0.0, 1.0))) * dist
+        return q
+
+    def predicted_sigma(self, distance_ahead, quality=None) -> float:
+        """Position std-dev [m] the filter WILL have after flying `distance_ahead`
+        metres more without a fix (v2 look-ahead: 'will I still be inside my budget
+        when I reach the next marker?')."""
+        P = np.asarray(self.state.covariance, dtype=float).reshape(2, 2)
+        worst = float(np.linalg.eigvalsh(0.5 * (P + P.T))[-1])
+        return float(np.sqrt(max(worst + self._growth(max(distance_ahead, 0.0), quality), 0.0)))
 
     # -- what the scheduler reads ------------------------------------------
     def sigma_pos(self) -> float:
